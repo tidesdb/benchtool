@@ -24,4 +24,5 @@ build
 .vscode
 vcpkg_installed
 .vs
+run.sh
 test_tidesdb
