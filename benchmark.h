@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef BENCHMARK_H
-#define BENCHMARK_H
+#ifndef __BENCHMARK_H__
+#define __BENCHMARK_H__
 
 #include <stdint.h>
 #include <time.h>
@@ -118,4 +118,4 @@ void free_results(benchmark_results_t *results);
 
 const storage_engine_ops_t *get_engine_ops(const char *engine_name);
 
-#endif /* BENCHMARK_H */
+#endif /* __BENCHMARK_H__ */

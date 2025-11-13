@@ -18,7 +18,7 @@
 
 #include "benchmark.h"
 
-#ifdef HAVE_ROCKSDB
+#ifdef __HAVE_ROCKSDB__
 #include <rocksdb/c.h>
 typedef struct {
   rocksdb_t *db;
@@ -218,4 +218,4 @@ const storage_engine_ops_t *get_rocksdb_ops(void) { return &rocksdb_ops; }
 /* stubski */
 const storage_engine_ops_t *get_rocksdb_ops(void) { return NULL; }
 
-#endif /* HAVE_ROCKSDB */
+#endif /* __HAVE_ROCKSDB__ */
