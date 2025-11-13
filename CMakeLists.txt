@@ -3,10 +3,8 @@ project(bench C)
 
 set(CMAKE_C_STANDARD 11)
 
-# Find TidesDB library
 find_library(TIDESDB_LIB tidesdb PATHS ${TIDESDB_BUILD_DIR} REQUIRED)
 
-# Optional: Find RocksDB
 find_library(ROCKSDB_LIB rocksdb)
 if(ROCKSDB_LIB)
     add_definitions(-DHAVE_ROCKSDB)
@@ -14,7 +12,6 @@ if(ROCKSDB_LIB)
 endif()
 
 
-# Benchmark sources
 add_executable(bench
         main.c
         benchmark.c
