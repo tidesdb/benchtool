@@ -60,7 +60,6 @@ int main(int argc, char **argv) {
                                .db_path = "./bench_db",
                                .compare_mode = 0,
                                .report_file = NULL,
-                               .sequential_keys = 0,
                                .key_pattern = KEY_PATTERN_RANDOM,
                                .workload_type = WORKLOAD_MIXED};
 
@@ -74,7 +73,6 @@ int main(int argc, char **argv) {
       {"db-path", required_argument, 0, 'd'},
       {"compare", no_argument, 0, 'c'},
       {"report", required_argument, 0, 'r'},
-      {"sequential", no_argument, 0, 's'},
       {"pattern", required_argument, 0, 'p'},
       {"workload", required_argument, 0, 'w'},
       {"help", no_argument, 0, 'h'},
@@ -112,10 +110,6 @@ int main(int argc, char **argv) {
       break;
     case 'r':
       config.report_file = optarg;
-      break;
-    case 's':
-      config.sequential_keys = 1;
-      config.key_pattern = KEY_PATTERN_SEQUENTIAL;
       break;
     case 'p':
       if (strcmp(optarg, "seq") == 0 || strcmp(optarg, "sequential") == 0)

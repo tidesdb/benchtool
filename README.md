@@ -26,7 +26,6 @@ Options:
   -d, --db-path <path>      Database path (default: ./bench_db)
   -c, --compare             Compare against RocksDB baseline
   -r, --report <file>       Output report to file (default: stdout)
-  -s, --sequential          Use sequential keys instead of random
   -p, --pattern <type>      Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
   -w, --workload <type>     Workload type: write, read, mixed, delete (default: mixed)
   -h, --help                Show help message
