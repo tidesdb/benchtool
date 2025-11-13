@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(bench C)
+project(benchtool C)
 
 set(CMAKE_C_STANDARD 11)
 
@@ -12,7 +12,7 @@ if(ROCKSDB_LIB)
 endif()
 
 
-add_executable(bench
+add_executable(benchtool
         main.c
         benchmark.c
         engine_tidesdb.c
@@ -20,4 +20,4 @@ add_executable(bench
         engine_registry.c
 )
 
-target_link_libraries(bench ${TIDESDB_LIB} ${ROCKSDB_LIBS} pthread m)
+target_link_libraries(benchtool ${TIDESDB_LIB} ${ROCKSDB_LIBS} pthread m)

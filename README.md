@@ -14,7 +14,7 @@ make
 
 ## Command Line Options
 ```
-Usage: bench [OPTIONS]
+Usage: benchtool [OPTIONS]
 
 Options:
   -e, --engine <name>       Storage engine to benchmark (tidesdb, rocksdb)
@@ -38,81 +38,81 @@ Options:
 
 ```bash
 # Benchmark TidesDB with default settings
-./bench -e tidesdb
+./benchtool -e tidesdb
 
 # Benchmark with 1 million operations
-./bench -e tidesdb -o 1000000
+./benchtool -e tidesdb -o 1000000
 
 # Benchmark with custom key/value sizes
-./bench -e tidesdb -o 500000 -k 32 -v 1024
+./benchtool -e tidesdb -o 500000 -k 32 -v 1024
 ```
 
 ### Multi-threaded Benchmarks
 
 ```bash
 # 4 threads, 500K operations
-./bench -e tidesdb -t 4 -o 500000
+./benchtool -e tidesdb -t 4 -o 500000
 
 # 8 threads, 1M operations
-./bench -e tidesdb -t 8 -o 1000000
+./benchtool -e tidesdb -t 8 -o 1000000
 ```
 
 ### Workload Types
 
 ```bash
 # Write-only workload
-./bench -e tidesdb -w write -o 1000000
+./benchtool -e tidesdb -w write -o 1000000
 
 # Read-only workload
-./bench -e tidesdb -w read -o 1000000
+./benchtool -e tidesdb -w read -o 1000000
 
 # Delete-only workload
-./bench -e tidesdb -w delete -o 1000000
+./benchtool -e tidesdb -w delete -o 1000000
 
 # Mixed workload (default - writes then reads)
-./bench -e tidesdb -w mixed -o 1000000
+./benchtool -e tidesdb -w mixed -o 1000000
 ```
 
 ### Key Patterns
 
 ```bash
 # Random keys (default)
-./bench -e tidesdb -o 500000
+./benchtool -e tidesdb -o 500000
 
 # Sequential keys
-./bench -e tidesdb -p seq -o 500000
+./benchtool -e tidesdb -p seq -o 500000
 
 # Zipfian distribution (hot keys - 80/20 rule)
-./bench -e tidesdb -p zipfian -o 500000
+./benchtool -e tidesdb -p zipfian -o 500000
 
 # Uniform random distribution
-./bench -e tidesdb -p uniform -o 500000
+./benchtool -e tidesdb -p uniform -o 500000
 
 # Timestamp-based keys
-./bench -e tidesdb -p timestamp -o 500000
+./benchtool -e tidesdb -p timestamp -o 500000
 
 # Reverse sequential keys
-./bench -e tidesdb -p reverse -o 500000
+./benchtool -e tidesdb -p reverse -o 500000
 ```
 
 ### Comparison Mode
 
 ```bash
 # Compare TidesDB vs RocksDB
-./bench -e tidesdb -c -o 500000 -t 4
+./benchtool -e tidesdb -c -o 500000 -t 4
 
 # Compare with custom settings
-./bench -e tidesdb -c -o 1000000 -k 32 -v 512 -t 8
+./benchtool -e tidesdb -c -o 1000000 -k 32 -v 512 -t 8
 ```
 
 ### Report Generation
 
 ```bash
 # Generate report file
-./bench -e tidesdb -o 1000000 -r results.txt
+./benchtool -e tidesdb -o 1000000 -r results.txt
 
 # Compare and save to file
-./bench -e tidesdb -c -o 500000 -t 4 -r comparison.txt
+./benchtool -e tidesdb -c -o 500000 -t 4 -r comparison.txt
 ```
 
 ## Benchmark Results
