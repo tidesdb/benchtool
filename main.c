@@ -41,7 +41,7 @@ int main(int argc, char **argv)
                                  .num_threads = 1,
                                  .batch_size = 1,
                                  .db_path = "./bench_db",
-                                 .compare_mode = 1,
+                                 .compare_mode = 0,
                                  .report_file = NULL,
                                  .sequential_keys = 0,
                                  .key_pattern = KEY_PATTERN_RANDOM,
