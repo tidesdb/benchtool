@@ -26,3 +26,4 @@ vcpkg_installed
 .vs
 run.sh
 test_tidesdb
+benchmark_results.txt

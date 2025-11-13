@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BENCH="./benchtool"
+BENCH="./build/benchtool"
 DB_PATH="/media/agpmastersystem/0e938ae2-7b41-437b-a5ac-a27e9f111a4e/db-bench"
 RESULTS="benchmark_results.txt"
 
@@ -8,7 +8,7 @@ RESULTS="benchmark_results.txt"
 > "$RESULTS"
 
 echo "===================================" | tee -a "$RESULTS"
-echo "TidesDB vs RocksDB Benchmark Suite" | tee -a "$RESULTS"
+echo "TidesDB vs RocksDB Benchmark Runner" | tee -a "$RESULTS"
 echo "Date: $(date)" | tee -a "$RESULTS"
 echo "===================================" | tee -a "$RESULTS"
 echo "" | tee -a "$RESULTS"
