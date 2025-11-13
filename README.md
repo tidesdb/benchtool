@@ -1,12 +1,4 @@
-<p align="center">
-  <img src="artwork/tidesdb-logo-v0.1.svg" alt="TidesDB" width="300" />
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="artwork/rocksdb.svg" alt="RocksDB" width="300" />
-</p>
-
-<h1 align="center">Benchtool</h1>
-
-<p align="center">Pluggable storage engine benchmarking tool with support for TidesDB and RocksDB.</p>
+Pluggable storage engine benchmarking tool with support for TidesDB and RocksDB.
 
 ## Features
 
