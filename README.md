@@ -1,17 +1,11 @@
 
-## Benchtool
-
-Pluggable storage engine benchmarking tool with support for TidesDB and RocksDB.
-
-## Features
-
+# Benchtool
 Pluggable storage engine benchmarking tool supporting multiple storage engines including TidesDB and RocksDB. Configure workloads for write-only, read-only, delete-only, or mixed operations. Benchmark with multiple concurrent threads to test scalability. Choose from various key patterns including sequential, random, zipfian, uniform, timestamp, or reverse key generation. Get detailed metrics including throughput, latency percentiles (p50, p95, p99), and min/max values. Compare engines side-by-side and export results to file for analysis.
 
 > [!NOTE]
 > TidesDB and RocksDB are configured to match each other's configurations
 
 ## Build
-
 ```bash
 mkdir build && cd build
 cmake ..
@@ -19,7 +13,6 @@ make
 ```
 
 ## Command Line Options
-
 ```
 Usage: bench [OPTIONS]
 
@@ -125,7 +118,6 @@ Options:
 ## Benchmark Results
 
 ### TidesDB vs RocksDB (500K ops, 4 threads)
-
 ```
 Configuration:
   Operations: 500,000
