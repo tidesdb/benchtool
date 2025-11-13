@@ -29,10 +29,36 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
 
     handle->options = rocksdb_options_create();
     rocksdb_options_set_create_if_missing(handle->options, 1);
+    
+    /* match TidesDB compression settings */
     rocksdb_options_set_compression(handle->options, rocksdb_lz4_compression);
-
+    
+    /* match TidesDB block cache size 64 MB */
+    rocksdb_cache_t *cache = rocksdb_cache_create_lru(64 * 1024 * 1024);
+    rocksdb_block_based_table_options_t *table_options = rocksdb_block_based_options_create();
+    rocksdb_block_based_options_set_block_cache(table_options, cache);
+    
+    /* match TidesDB bloom filter settings */
+    rocksdb_block_based_options_set_filter_policy(table_options, 
+        rocksdb_filterpolicy_create_bloom(10));
+    
+    /* match TidesDB block indexes */
+    rocksdb_block_based_options_set_index_type(table_options, 
+        rocksdb_block_based_table_index_type_two_level_index_search);
+    
+    rocksdb_options_set_block_based_table_factory(handle->options, table_options);
+    
+    /* match TidesDB memtable flush size: 64 MB */
+    rocksdb_options_set_write_buffer_size(handle->options, 64 * 1024 * 1024);
+    
+    /* match TidesDB thread configuration */
+    rocksdb_options_set_max_background_jobs(handle->options, 8);  /* 4 flush + 4 compaction */
+    
     handle->roptions = rocksdb_readoptions_create();
     handle->woptions = rocksdb_writeoptions_create();
+    
+    /* match TidesDB sync mode TDB_SYNC_NONE (no fsync) */
+    rocksdb_writeoptions_set_sync(handle->woptions, 0);
 
     char *err = NULL;
     handle->db = rocksdb_open(handle->options, path, &err);
@@ -59,6 +85,9 @@ static int rocksdb_close_impl(storage_engine_t *engine)
     rocksdb_options_destroy(handle->options);
     rocksdb_readoptions_destroy(handle->roptions);
     rocksdb_writeoptions_destroy(handle->woptions);
+    rocksdb_block_based_options_destroy(handle->table_options);
+    rocksdb_filterpolicy_destroy(handle->filter_policy);
+    rocksdb_cache_destroy(handle->cache);
     free(handle);
     free(engine);
     return 0;
