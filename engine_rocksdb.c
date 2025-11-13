@@ -18,13 +18,16 @@
 
 #include "benchmark.h"
 
-#ifdef __HAVE_ROCKSDB__
+#ifdef HAVE_ROCKSDB
 #include <rocksdb/c.h>
 typedef struct {
   rocksdb_t *db;
   rocksdb_options_t *options;
   rocksdb_readoptions_t *roptions;
   rocksdb_writeoptions_t *woptions;
+  rocksdb_cache_t *cache;
+  rocksdb_block_based_table_options_t *table_options;
+  rocksdb_filterpolicy_t *filter_policy;
 } rocksdb_handle_t;
 
 static const storage_engine_ops_t rocksdb_ops;
@@ -218,4 +221,4 @@ const storage_engine_ops_t *get_rocksdb_ops(void) { return &rocksdb_ops; }
 /* stubski */
 const storage_engine_ops_t *get_rocksdb_ops(void) { return NULL; }
 
-#endif /* __HAVE_ROCKSDB__ */
+#endif /* HAVE_ROCKSDB */
