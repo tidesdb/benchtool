@@ -137,6 +137,8 @@ typedef struct
     int (*iter_value)(void *iter, uint8_t **value, size_t *value_size);
     int (*iter_free)(void *iter);
 
+    void (*set_sync)(storage_engine_t *engine, int sync_enabled); /* optional */
+
     const char *name;
 } storage_engine_ops_t;
 

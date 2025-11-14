@@ -1,7 +1,7 @@
 
 # Benchtool
 
-A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB with pluggable architecture. Benchtool measures performance across write-only, read-only, delete-only, and mixed workloads with configurable concurrency for scalability testing. Key generation patterns include sequential, random, zipfian (hot keys), uniform, timestamp-based, and reverse sequential access. The tool provides detailed performance metrics including throughput, latency distributions (p50, p95, p99), and operation durations. Resource monitoring tracks memory usage (RSS/VMS), disk I/O, CPU utilization, and database size. Amplification metrics reveal write, read, and space efficiency—critical for understanding SSD wear and storage overhead. Side-by-side engine comparisons and exportable reports enable thorough performance analysis.
+A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB with pluggable architecture. Benchtool measures performance across write-only, read-only, delete-only, and mixed workloads with configurable concurrency for scalability testing. Key generation patterns include sequential, random, zipfian (hot keys), uniform, timestamp-based, and reverse sequential access. The tool provides detailed performance metrics including throughput, latency distributions (p50, p95, p99), and operation durations. Resource monitoring tracks memory usage (RSS/VMS), disk I/O, CPU utilization, and database size. Amplification metrics reveal write, read, and space efficiency in which is critical for understanding SSD wear and storage overhead. Side-by-side engine comparisons and exportable reports enable thorough performance analysis.
 
 > [!NOTE]
 > TidesDB and RocksDB are configured to match each other's configurations
@@ -129,7 +129,13 @@ Options:
 ./benchtool -e tidesdb -c -w write -o 1000000 --sync
 ```
 
-**Note:** The `--sync` flag enables fsync after each write operation, ensuring data is persisted to disk. This provides durability guarantees but significantly reduces write throughput. Use this to test worst-case performance or when crash recovery is critical.
+The `--sync` flag enables fsync after each write operation, ensuring data is persisted to disk. This provides durability guarantees but significantly reduces write throughput. Use this to test worst-case performance or when crash recovery is critical.
+
+## RocksDB Optimizations
+
+The RocksDB engine configuration has been optimized for fair and accurate benchmarking. The cache uses ClockCache instead of LRU (recommended by RocksDB team for better concurrency) with 64 MB size to match TidesDB configuration. Index configuration employs binary search index rather than two-level index for better read performance, pins L0 index and filter blocks in cache for faster hot data access, and reduces index lookup overhead during benchmarks. Checksums use XXH3 instead of CRC32 for faster data verification and reduced CPU overhead during writes and reads. Bloom filters are configured at 10 bits per key to match TidesDB, reducing unnecessary disk reads for non-existent keys. Compression and memtable settings include LZ4 compression to match TidesDB, 64 MB write buffer (memtable) size, and 8 background jobs for flush and compaction operations.
+
+These optimizations ensure RocksDB runs at peak performance for fair comparison with TidesDB.
 
 ## Metrics
 

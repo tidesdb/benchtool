@@ -51,22 +51,30 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     /* match TidesDB compression settings */
     rocksdb_options_set_compression(handle->options, rocksdb_lz4_compression);
 
-    /* match TidesDB block cache size 64 MB */
-    rocksdb_cache_t *cache = rocksdb_cache_create_lru(64 * 1024 * 1024);
-    rocksdb_block_based_table_options_t *table_options = rocksdb_block_based_options_create();
-    rocksdb_block_based_options_set_block_cache(table_options, cache);
+    /* use ClockCache (recommended over LRU) - 64 MB to match TidesDB */
+    handle->cache = rocksdb_cache_create_clock(64 * 1024 * 1024, -1, false);
+    handle->table_options = rocksdb_block_based_options_create();
+    rocksdb_block_based_options_set_block_cache(handle->table_options, handle->cache);
 
     /* match TidesDB bloom filter settings */
-    rocksdb_block_based_options_set_filter_policy(table_options,
-                                                  rocksdb_filterpolicy_create_bloom(10));
+    handle->filter_policy = rocksdb_filterpolicy_create_bloom(10);
+    rocksdb_block_based_options_set_filter_policy(handle->table_options, handle->filter_policy);
 
-    /* match TidesDB block indexes */
+    /* use binary search index (not two-level) for better performance */
     rocksdb_block_based_options_set_index_type(
-        table_options, rocksdb_block_based_table_index_type_two_level_index_search);
+        handle->table_options, rocksdb_block_based_table_index_type_binary_search);
 
-    rocksdb_options_set_block_based_table_factory(handle->options, table_options);
+    /* pin L0 index and filter blocks in cache for faster access */
+    rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(
+        handle->table_options, 1);
 
-    /* match TidesDB memtable flush size: 64 MB */
+    /* use XXH3 checksum (faster than CRC32), matches TidesDB XXH3 checksums */
+    rocksdb_block_based_options_set_checksum_type(
+        handle->table_options, rocksdb_checksum_type_xxh3);
+
+    rocksdb_options_set_block_based_table_factory(handle->options, handle->table_options);
+
+    /* match TidesDB memtable flush size 64 MB */
     rocksdb_options_set_write_buffer_size(handle->options, 64 * 1024 * 1024);
 
     /* match TidesDB thread configuration */
@@ -75,7 +83,7 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     handle->roptions = rocksdb_readoptions_create();
     handle->woptions = rocksdb_writeoptions_create();
 
-    /* match TidesDB sync mode TDB_SYNC_NONE (no fsync) */
+    /* sync mode will be set based on benchmark config */
     rocksdb_writeoptions_set_sync(handle->woptions, 0);
 
     char *err = NULL;
@@ -103,12 +111,22 @@ static int rocksdb_close_impl(storage_engine_t *engine)
     rocksdb_options_destroy(handle->options);
     rocksdb_readoptions_destroy(handle->roptions);
     rocksdb_writeoptions_destroy(handle->woptions);
-    rocksdb_block_based_options_destroy(handle->table_options);
-    rocksdb_filterpolicy_destroy(handle->filter_policy);
-    rocksdb_cache_destroy(handle->cache);
+    if (handle->table_options)
+        rocksdb_block_based_options_destroy(handle->table_options);
+    if (handle->filter_policy)
+        rocksdb_filterpolicy_destroy(handle->filter_policy);
+    if (handle->cache)
+        rocksdb_cache_destroy(handle->cache);
     free(handle);
     free(engine);
     return 0;
+}
+
+/* helper to set sync mode dynamically */
+static void rocksdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
+{
+    rocksdb_handle_t *handle = (rocksdb_handle_t *)engine->handle;
+    rocksdb_writeoptions_set_sync(handle->woptions, sync_enabled);
 }
 
 static int rocksdb_put_impl(storage_engine_t *engine, const uint8_t *key, size_t key_size,
@@ -219,6 +237,7 @@ static const storage_engine_ops_t rocksdb_ops = {
     .iter_key = rocksdb_iter_key_impl,
     .iter_value = rocksdb_iter_value_impl,
     .iter_free = rocksdb_iter_free_impl,
+    .set_sync = rocksdb_set_sync_mode,
     .name = "RocksDB"};
 
 const storage_engine_ops_t *get_rocksdb_ops(void)

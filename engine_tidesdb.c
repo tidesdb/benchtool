@@ -23,6 +23,7 @@ typedef struct
 {
     tidesdb_t *db;
     tidesdb_column_family_t *cf;
+    tidesdb_sync_mode_t sync_mode; 
 } tidesdb_handle_t;
 
 typedef struct
@@ -65,8 +66,9 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     cf_config.enable_bloom_filter = 1;
     cf_config.enable_block_indexes = 1;
     cf_config.block_manager_cache_size = 64 * 1024 * 1024;
-    cf_config.sync_mode = TDB_SYNC_NONE;
+    cf_config.sync_mode = TDB_SYNC_NONE; /* default */
     cf_config.memtable_flush_size = 64 * 1024 * 1024;
+
 
     if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
     {
@@ -86,6 +88,31 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     (*engine)->ops = &tidesdb_ops;
 
     return 0;
+}
+
+/* helper to set sync mode dynamically */
+static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
+{
+    tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+    /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FSYNC, TDB_SYNC_FDATASYNC */
+    handle->sync_mode = sync_enabled ? TDB_SYNC_FDATASYNC : TDB_SYNC_NONE;
+    
+    tidesdb_column_family_update_config_t update_config = {
+        .memtable_flush_size = handle->cf->config.memtable_flush_size,
+        .max_sstables_before_compaction = handle->cf->config.max_sstables_before_compaction,
+        .compaction_threads = handle->cf->config.compaction_threads,
+        .sl_max_level = handle->cf->config.sl_max_level,
+        .sl_probability = handle->cf->config.sl_probability,
+        .enable_bloom_filter = handle->cf->config.enable_bloom_filter,
+        .bloom_filter_fp_rate = handle->cf->config.bloom_filter_fp_rate,
+        .enable_background_compaction = handle->cf->config.enable_background_compaction,
+        .background_compaction_interval = handle->cf->config.background_compaction_interval,
+        .block_manager_cache_size = handle->cf->config.block_manager_cache_size,
+        .sync_mode = handle->sync_mode
+    };
+    
+    (void)tidesdb_update_column_family_config(handle->db, "default", &update_config)
+ 
 }
 
 static int tidesdb_close_impl(storage_engine_t *engine)
@@ -220,6 +247,7 @@ static const storage_engine_ops_t tidesdb_ops = {
     .iter_key = tidesdb_iter_key_impl,
     .iter_value = tidesdb_iter_value_impl,
     .iter_free = tidesdb_iter_free_impl,
+    .set_sync = tidesdb_set_sync_mode,
     .name = "TidesDB"};
 
 const storage_engine_ops_t *get_tidesdb_ops(void)
