@@ -1,6 +1,7 @@
 
 # Benchtool
-Pluggable storage engine benchmarking tool supporting multiple storage engines including TidesDB and RocksDB. Configure workloads for write-only, read-only, delete-only, or mixed operations. Benchmark with multiple concurrent threads to test scalability. Choose from various key patterns including sequential, random, zipfian, uniform, timestamp, or reverse key generation. Get detailed metrics including throughput, latency percentiles (p50, p95, p99), and min/max values. Compare engines side-by-side and export results to file for analysis.
+
+A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB with pluggable architecture. Benchtool measures performance across write-only, read-only, delete-only, and mixed workloads with configurable concurrency for scalability testing. Key generation patterns include sequential, random, zipfian (hot keys), uniform, timestamp-based, and reverse sequential access. The tool provides detailed performance metrics including throughput, latency distributions (p50, p95, p99), and operation durations. Resource monitoring tracks memory usage (RSS/VMS), disk I/O, CPU utilization, and database size. Amplification metrics reveal write, read, and space efficiency—critical for understanding SSD wear and storage overhead. Side-by-side engine comparisons and exportable reports enable thorough performance analysis.
 
 > [!NOTE]
 > TidesDB and RocksDB are configured to match each other's configurations
@@ -114,34 +115,29 @@ Options:
 ./benchtool -e tidesdb -c -o 500000 -t 4 -r comparison.txt
 ```
 
-## Benchmark Results
+## Metrics
 
-### TidesDB vs RocksDB (500K ops, 4 threads)
-```
-Configuration:
-  Operations: 500,000
-  Key Size: 16 bytes
-  Value Size: 100 bytes
-  Threads: 4
-  Workload: Mixed
+Benchtool provides performance and resource metrics
 
-Results:
-                TidesDB         RocksDB         Ratio
-  PUT:          291K ops/sec    423K ops/sec    0.69x
-  GET:          7.7M ops/sec    1.6M ops/sec    4.71x
-  ITER:         12.8M ops/sec   5.3M ops/sec    2.42x
+### Performance Metrics
 
-Latency (TidesDB):
-  PUT avg:      13.38 μs
-  PUT p50:      3.00 μs
-  PUT p95:      93.00 μs
-  PUT p99:      169.00 μs
-  
-  GET avg:      0.39 μs
-  GET p50:      0.00 μs
-  GET p95:      1.00 μs
-  GET p99:      1.00 μs
-```
+The benchmark measures throughput as operations per second for PUT, GET, DELETE, and ITER operations, providing a clear picture of how fast each storage engine can handle different workload types. Latency statistics capture the complete distribution of operation times, including average latency, median (p50), 95th percentile (p95), 99th percentile (p99), as well as minimum and maximum values in microseconds. Duration tracking shows the total wall-clock time spent on each operation type, helping identify which operations dominate the overall benchmark runtime.
+
+### Resource Metrics
+
+Resource monitoring tracks actual system-level consumption throughout the benchmark. Memory usage is measured through peak RSS (Resident Set Size), which represents the actual physical memory used by the process, and peak VMS (Virtual Memory Size), which shows the total virtual memory allocated. Disk I/O metrics capture bytes read from and written to disk via `/proc/self/io`, providing accurate system-level measurements that reflect the true storage cost of operations. CPU usage is broken down into user time (spent executing application code) and system time (spent in kernel operations), with an overall CPU utilization percentage showing how efficiently the benchmark uses available CPU resources. The total on-disk database size is measured after all operations complete, revealing the actual storage footprint.
+
+### Amplification Factors
+
+Amplification metrics help understand the efficiency of storage engines by measuring the overhead of database operations. Write amplification is the ratio of bytes written to disk versus logical data written, calculated as `disk_bytes_written / (num_operations × (key_size + value_size))`. Lower values are better, with 1.0x representing ideal performance with no amplification. This metric is particularly important for SSD wear and write performance, as excessive write amplification can significantly reduce SSD lifespan. Read amplification measures the ratio of bytes read from disk versus logical data read (`disk_bytes_read / logical_bytes_read`), indicating how efficiently the storage engine retrieves data. Space amplification is the ratio of disk space used versus logical data size (`db_size_on_disk / logical_data_size`), with lower values being better and 1.0x representing no overhead. This metric includes the cost of indexes, metadata, and fragmentation, revealing the true storage efficiency of each engine.
+
+### Comparison Mode
+
+When using `-c` flag, benchtool compares TidesDB against RocksDB and provides:
+- Side-by-side performance comparisons
+- Resource usage comparisons (memory, disk I/O, database size)
+- Amplification factor comparisons
+- Speedup ratios for all metrics
 
 ## Adding New Engines
 1. Create `engine_yourengine.c` implementing storage_engine_ops_t.  

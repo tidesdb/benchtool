@@ -15,13 +15,17 @@
  */
 #include "benchmark.h"
 
+#include <dirent.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <tidesdb/tidesdb_version.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef HAVE_ROCKSDB
 #include <rocksdb/c.h>
@@ -124,6 +128,90 @@ static double get_time_microseconds(void) {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return tv.tv_sec * 1000000.0 + tv.tv_usec;
+}
+
+/* get memory usage from /proc/self/status */
+static void get_memory_usage(size_t *rss_bytes, size_t *vms_bytes) {
+  FILE *fp = fopen("/proc/self/status", "r");
+  if (!fp) {
+    *rss_bytes = 0;
+    *vms_bytes = 0;
+    return;
+  }
+
+  char line[256];
+  while (fgets(line, sizeof(line), fp)) {
+    if (strncmp(line, "VmRSS:", 6) == 0) {
+      sscanf(line + 6, "%zu", rss_bytes);
+      *rss_bytes *= 1024; /* convert KB to bytes */
+    } else if (strncmp(line, "VmSize:", 7) == 0) {
+      sscanf(line + 7, "%zu", vms_bytes);
+      *vms_bytes *= 1024; /* convert KB to bytes */
+    }
+  }
+  fclose(fp);
+}
+
+/* get I/O statistics from /proc/self/io */
+static void get_io_stats(size_t *bytes_read, size_t *bytes_written) {
+  FILE *fp = fopen("/proc/self/io", "r");
+  if (!fp) {
+    *bytes_read = 0;
+    *bytes_written = 0;
+    return;
+  }
+
+  char line[256];
+  while (fgets(line, sizeof(line), fp)) {
+    if (strncmp(line, "read_bytes:", 11) == 0) {
+      sscanf(line + 11, "%zu", bytes_read);
+    } else if (strncmp(line, "write_bytes:", 12) == 0) {
+      sscanf(line + 12, "%zu", bytes_written);
+    }
+  }
+  fclose(fp);
+}
+
+/* get CPU usage statistics */
+static void get_cpu_stats(double *user_time, double *system_time) {
+  struct rusage usage;
+  if (getrusage(RUSAGE_SELF, &usage) == 0) {
+    *user_time = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1000000.0;
+    *system_time = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1000000.0;
+  } else {
+    *user_time = 0.0;
+    *system_time = 0.0;
+  }
+}
+
+/* recursive calculate directory size */
+static size_t get_directory_size(const char *path) {
+  DIR *dir = opendir(path);
+  if (!dir)
+    return 0;
+
+  size_t total_size = 0;
+  struct dirent *entry;
+  char filepath[1024];
+
+  while ((entry = readdir(dir)) != NULL) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+      continue;
+
+    snprintf(filepath, sizeof(filepath), "%s/%s", path, entry->d_name);
+
+    struct stat st;
+    if (stat(filepath, &st) == 0) {
+      if (S_ISDIR(st.st_mode)) {
+        total_size += get_directory_size(filepath);
+      } else if (S_ISREG(st.st_mode)) {
+        total_size += st.st_size;
+      }
+    }
+  }
+
+  closedir(dir);
+  return total_size;
 }
 
 static void generate_value(uint8_t *value, size_t value_size, int index) {
@@ -262,6 +350,15 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results) {
     free(*results);
     return -1;
   }
+
+  /* capture baseline resource metrics */
+  size_t baseline_rss, baseline_vms, baseline_io_read, baseline_io_write;
+  double baseline_cpu_user, baseline_cpu_system;
+  double benchmark_start_time = get_time_microseconds();
+  
+  get_memory_usage(&baseline_rss, &baseline_vms);
+  get_io_stats(&baseline_io_read, &baseline_io_write);
+  get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
 
   printf("Running %s benchmark...\n", ops->name);
 
@@ -459,6 +556,52 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results) {
     printf("not supported\n");
   }
 
+  /* capture final resource metrics */
+  size_t final_rss, final_vms, final_io_read, final_io_write;
+  double final_cpu_user, final_cpu_system;
+  double benchmark_end_time = get_time_microseconds();
+  
+  get_memory_usage(&final_rss, &final_vms);
+  get_io_stats(&final_io_read, &final_io_write);
+  get_cpu_stats(&final_cpu_user, &final_cpu_system);
+  
+  /* calc resource deltas */
+  (*results)->resources.peak_rss_bytes = final_rss > baseline_rss ? final_rss : baseline_rss;
+  (*results)->resources.peak_vms_bytes = final_vms > baseline_vms ? final_vms : baseline_vms;
+  (*results)->resources.bytes_read = final_io_read - baseline_io_read;
+  (*results)->resources.bytes_written = final_io_write - baseline_io_write;
+  (*results)->resources.cpu_user_time = final_cpu_user - baseline_cpu_user;
+  (*results)->resources.cpu_system_time = final_cpu_system - baseline_cpu_system;
+  
+  /* calc CPU percentage */
+  double total_wall_time = (benchmark_end_time - benchmark_start_time) / 1000000.0;
+  double total_cpu_time = (*results)->resources.cpu_user_time + 
+                          (*results)->resources.cpu_system_time;
+  (*results)->resources.cpu_percent = (total_cpu_time / total_wall_time) * 100.0;
+  
+  /* get storage size */
+  (*results)->resources.db_size_bytes = get_directory_size(config->db_path);
+  
+  /* calc amplification factors */
+  size_t logical_data_written = (size_t)config->num_operations * 
+                                (config->key_size + config->value_size);
+  size_t logical_data_read = (*results)->total_bytes_read;
+  
+  if (logical_data_written > 0) {
+    (*results)->resources.write_amplification = 
+        (double)(*results)->resources.bytes_written / (double)logical_data_written;
+  }
+  
+  if (logical_data_read > 0) {
+    (*results)->resources.read_amplification = 
+        (double)(*results)->resources.bytes_read / (double)logical_data_read;
+  }
+  
+  if (logical_data_written > 0) {
+    (*results)->resources.space_amplification = 
+        (double)(*results)->resources.db_size_bytes / (double)logical_data_written;
+  }
+
   ops->close(engine);
   return 0;
 }
@@ -541,6 +684,41 @@ void generate_report(FILE *fp, benchmark_results_t *results,
             results->iteration_stats.duration_seconds);
   }
 
+  /* resource usage section */
+  fprintf(fp, "Resource Usage:\n");
+  fprintf(fp, "  Peak RSS: %.2f MB\n", 
+          results->resources.peak_rss_bytes / (1024.0 * 1024.0));
+  fprintf(fp, "  Peak VMS: %.2f MB\n", 
+          results->resources.peak_vms_bytes / (1024.0 * 1024.0));
+  fprintf(fp, "  Disk Reads: %.2f MB\n", 
+          results->resources.bytes_read / (1024.0 * 1024.0));
+  fprintf(fp, "  Disk Writes: %.2f MB\n", 
+          results->resources.bytes_written / (1024.0 * 1024.0));
+  fprintf(fp, "  CPU User Time: %.3f seconds\n", 
+          results->resources.cpu_user_time);
+  fprintf(fp, "  CPU System Time: %.3f seconds\n", 
+          results->resources.cpu_system_time);
+  fprintf(fp, "  CPU Utilization: %.1f%%\n", 
+          results->resources.cpu_percent);
+  fprintf(fp, "  Database Size: %.2f MB\n\n", 
+          results->resources.db_size_bytes / (1024.0 * 1024.0));
+
+  /* amplification factors section */
+  fprintf(fp, "Amplification Factors:\n");
+  if (results->resources.write_amplification > 0) {
+    fprintf(fp, "  Write Amplification: %.2fx\n", 
+            results->resources.write_amplification);
+  }
+  if (results->resources.read_amplification > 0) {
+    fprintf(fp, "  Read Amplification: %.2fx\n", 
+            results->resources.read_amplification);
+  }
+  if (results->resources.space_amplification > 0) {
+    fprintf(fp, "  Space Amplification: %.2fx\n", 
+            results->resources.space_amplification);
+  }
+  fprintf(fp, "\n");
+
   if (baseline) {
     fprintf(fp, "=== Comparison vs %s ===\n\n", baseline->engine_name);
 
@@ -574,6 +752,32 @@ void generate_report(FILE *fp, benchmark_results_t *results,
                        baseline->iteration_stats.ops_per_second;
       fprintf(fp, "ITER: %.2fx %s\n", speedup,
               speedup > 1.0 ? "faster" : "slower");
+    }
+    
+    /* resource comparison */
+    fprintf(fp, "\nResource Comparison:\n");
+    fprintf(fp, "  Memory (RSS): %.2f MB vs %.2f MB\n",
+            results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+            baseline->resources.peak_rss_bytes / (1024.0 * 1024.0));
+    fprintf(fp, "  Disk Writes: %.2f MB vs %.2f MB\n",
+            results->resources.bytes_written / (1024.0 * 1024.0),
+            baseline->resources.bytes_written / (1024.0 * 1024.0));
+    fprintf(fp, "  Database Size: %.2f MB vs %.2f MB\n",
+            results->resources.db_size_bytes / (1024.0 * 1024.0),
+            baseline->resources.db_size_bytes / (1024.0 * 1024.0));
+    
+    /* amplification comparison */
+    if (results->resources.write_amplification > 0 && 
+        baseline->resources.write_amplification > 0) {
+      fprintf(fp, "  Write Amplification: %.2fx vs %.2fx\n",
+              results->resources.write_amplification,
+              baseline->resources.write_amplification);
+    }
+    if (results->resources.space_amplification > 0 && 
+        baseline->resources.space_amplification > 0) {
+      fprintf(fp, "  Space Amplification: %.2fx vs %.2fx\n",
+              results->resources.space_amplification,
+              baseline->resources.space_amplification);
     }
   }
 }

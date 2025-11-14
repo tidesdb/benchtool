@@ -69,6 +69,31 @@ typedef struct {
 } operation_stats_t;
 
 typedef struct {
+  /* mem metrics */
+  size_t peak_rss_bytes;        /* peak resident set size */
+  size_t peak_vms_bytes;        /* peak virtual memory size */
+  
+  /* io metrics */
+  size_t bytes_read;            /* total bytes read from disk */
+  size_t bytes_written;         /* total bytes written to disk */
+  size_t read_ops;              /* number of read operations */
+  size_t write_ops;             /* number of write operations */
+  
+  /* cpu metrics */
+  double cpu_user_time;         /* user CPU time in seconds */
+  double cpu_system_time;       /* system CPU time in seconds */
+  double cpu_percent;           /* CPU utilization percentage */
+  
+  /* amplification factors */
+  double write_amplification;   /* bytes_written / logical_data_written */
+  double read_amplification;    /* bytes_read / logical_data_read */
+  double space_amplification;   /* disk_space_used / logical_data_size */
+  
+  /* storage size */
+  size_t storage_size_bytes;         /* total storage size on disk */
+} resource_stats_t;
+
+typedef struct {
   const char *engine_name;
   benchmark_config_t config;
   operation_stats_t put_stats;
@@ -77,6 +102,7 @@ typedef struct {
   operation_stats_t iteration_stats;
   size_t total_bytes_written;
   size_t total_bytes_read;
+  resource_stats_t resources;
 } benchmark_results_t;
 
 /* storage eng interface */
