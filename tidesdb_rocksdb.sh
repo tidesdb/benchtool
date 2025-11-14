@@ -4,7 +4,7 @@ BENCH="./build/benchtool"
 DB_PATH="db-bench"
 RESULTS="benchmark_results.txt"
 
-# Set to "true" to enable fsync (durability), "false" for maximum performance
+# Set to "true" to enable fsync-fdatasync (durability), "false" for maximum performance
 SYNC_ENABLED="false"
 
 if [ "$SYNC_ENABLED" = "true" ]; then
