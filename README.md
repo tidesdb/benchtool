@@ -29,6 +29,7 @@ Options:
   -r, --report <file>       Output report to file (default: stdout)
   -p, --pattern <type>      Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
   -w, --workload <type>     Workload type: write, read, mixed, delete (default: mixed)
+  --sync                    Enable fsync for durable writes (slower)
   -h, --help                Show help message
 ```
 
@@ -114,6 +115,21 @@ Options:
 # Compare and save to file
 ./benchtool -e tidesdb -c -o 500000 -t 4 -r comparison.txt
 ```
+
+### Durability Options
+
+```bash
+# Default: Fast mode (no fsync)
+./benchtool -e tidesdb -w write -o 1000000
+
+# Durable mode: Enable fsync for crash-safe writes (slower)
+./benchtool -e tidesdb -w write -o 1000000 --sync
+
+# Compare performance impact of sync
+./benchtool -e tidesdb -c -w write -o 1000000 --sync
+```
+
+**Note:** The `--sync` flag enables fsync after each write operation, ensuring data is persisted to disk. This provides durability guarantees but significantly reduces write throughput. Use this to test worst-case performance or when crash recovery is critical.
 
 ## Metrics
 
