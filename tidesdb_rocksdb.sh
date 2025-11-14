@@ -4,20 +4,31 @@ BENCH="./build/benchtool"
 DB_PATH="db-bench"
 RESULTS="benchmark_results.txt"
 
+# Set to "true" to enable fsync (durability), "false" for maximum performance
+SYNC_ENABLED="false"
+
+if [ "$SYNC_ENABLED" = "true" ]; then
+    SYNC_FLAG="--sync"
+    SYNC_MODE="ENABLED (durable writes)"
+else
+    SYNC_FLAG=""
+    SYNC_MODE="DISABLED (maximum performance)"
+fi
 
 > "$RESULTS"
 
 echo "===================================" | tee -a "$RESULTS"
 echo "TidesDB-RocksDB Benchtool Runner" | tee -a "$RESULTS"
 echo "Date: $(date)" | tee -a "$RESULTS"
+echo "Sync Mode: $SYNC_MODE" | tee -a "$RESULTS"
 echo "===================================" | tee -a "$RESULTS"
 echo "" | tee -a "$RESULTS"
 
 run_bench() {
     echo "" | tee -a "$RESULTS"
-    echo "Running: $BENCH $@" | tee -a "$RESULTS"
+    echo "Running: $BENCH $@ $SYNC_FLAG" | tee -a "$RESULTS"
     rm -rf "$DB_PATH"
-    $BENCH "$@" -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    $BENCH "$@" $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
     echo "---" | tee -a "$RESULTS"
 }
 
@@ -28,10 +39,10 @@ run_bench_delete() {
     echo "" | tee -a "$RESULTS"
     echo "Preparing data for delete test..." | tee -a "$RESULTS"
     rm -rf "$DB_PATH"
-    $BENCH $write_args -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    $BENCH $write_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
     
-    echo "Running delete: $BENCH $delete_args" | tee -a "$RESULTS"
-    $BENCH $delete_args -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    echo "Running delete: $BENCH $delete_args $SYNC_FLAG" | tee -a "$RESULTS"
+    $BENCH $delete_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
     echo "---" | tee -a "$RESULTS"
 }
 

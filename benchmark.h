@@ -27,119 +27,127 @@ const char *get_engine_version(const char *engine_name);
 #include <stddef.h>
 #include <stdio.h>
 
-typedef enum {
-  WORKLOAD_WRITE,
-  WORKLOAD_READ,
-  WORKLOAD_MIXED,
-  WORKLOAD_DELETE
+typedef enum
+{
+    WORKLOAD_WRITE,
+    WORKLOAD_READ,
+    WORKLOAD_MIXED,
+    WORKLOAD_DELETE
 } workload_type_t;
 
-typedef enum {
-  KEY_PATTERN_SEQUENTIAL,
-  KEY_PATTERN_RANDOM,
-  KEY_PATTERN_ZIPFIAN,   /* hot keys (80/20 distribution) */
-  KEY_PATTERN_UNIFORM,   /* true uniform random */
-  KEY_PATTERN_TIMESTAMP, /* monotonically increasing timestamp-like */
-  KEY_PATTERN_REVERSE    /* reverse sequential */
+typedef enum
+{
+    KEY_PATTERN_SEQUENTIAL,
+    KEY_PATTERN_RANDOM,
+    KEY_PATTERN_ZIPFIAN,   /* hot keys (80/20 distribution) */
+    KEY_PATTERN_UNIFORM,   /* true uniform random */
+    KEY_PATTERN_TIMESTAMP, /* monotonically increasing timestamp-like */
+    KEY_PATTERN_REVERSE    /* reverse sequential */
 } key_pattern_t;
 
-typedef struct {
-  const char *engine_name;
-  int num_operations;
-  int key_size;
-  int value_size;
-  int num_threads;
-  int batch_size;
-  const char *db_path;
-  int compare_mode;
-  const char *report_file;
-  key_pattern_t key_pattern;
-  workload_type_t workload_type;
+typedef struct
+{
+    const char *engine_name;
+    int num_operations;
+    int key_size;
+    int value_size;
+    int num_threads;
+    int batch_size;
+    const char *db_path;
+    int compare_mode;
+    const char *report_file;
+    key_pattern_t key_pattern;
+    workload_type_t workload_type;
+    int sync_enabled;
 } benchmark_config_t;
 
-typedef struct {
-  double duration_seconds;
-  double ops_per_second;
-  double avg_latency_us;
-  double p50_latency_us;
-  double p95_latency_us;
-  double p99_latency_us;
-  double min_latency_us;
-  double max_latency_us;
+typedef struct
+{
+    double duration_seconds;
+    double ops_per_second;
+    double avg_latency_us;
+    double p50_latency_us;
+    double p95_latency_us;
+    double p99_latency_us;
+    double min_latency_us;
+    double max_latency_us;
 } operation_stats_t;
 
-typedef struct {
-  /* mem metrics */
-  size_t peak_rss_bytes; /* peak resident set size */
-  size_t peak_vms_bytes; /* peak virtual memory size */
+typedef struct
+{
+    /* mem metrics */
+    size_t peak_rss_bytes; /* peak resident set size */
+    size_t peak_vms_bytes; /* peak virtual memory size */
 
-  /* io metrics */
-  size_t bytes_read;    /* total bytes read from disk */
-  size_t bytes_written; /* total bytes written to disk */
-  size_t read_ops;      /* number of read operations */
-  size_t write_ops;     /* number of write operations */
+    /* io metrics */
+    size_t bytes_read;    /* total bytes read from disk */
+    size_t bytes_written; /* total bytes written to disk */
+    size_t read_ops;      /* number of read operations */
+    size_t write_ops;     /* number of write operations */
 
-  /* cpu metrics */
-  double cpu_user_time;   /* user CPU time in seconds */
-  double cpu_system_time; /* system CPU time in seconds */
-  double cpu_percent;     /* CPU utilization percentage */
+    /* cpu metrics */
+    double cpu_user_time;   /* user CPU time in seconds */
+    double cpu_system_time; /* system CPU time in seconds */
+    double cpu_percent;     /* CPU utilization percentage */
 
-  /* amplification factors */
-  double write_amplification; /* bytes_written / logical_data_written */
-  double read_amplification;  /* bytes_read / logical_data_read */
-  double space_amplification; /* disk_space_used / logical_data_size */
+    /* amplification factors */
+    double write_amplification; /* bytes_written / logical_data_written */
+    double read_amplification;  /* bytes_read / logical_data_read */
+    double space_amplification; /* disk_space_used / logical_data_size */
 
-  /* storage size */
-  size_t storage_size_bytes; /* total storage size on disk */
+    /* storage size */
+    size_t storage_size_bytes; /* total storage size on disk */
 } resource_stats_t;
 
-typedef struct {
-  const char *engine_name;
-  benchmark_config_t config;
-  operation_stats_t put_stats;
-  operation_stats_t get_stats;
-  operation_stats_t delete_stats;
-  operation_stats_t iteration_stats;
-  size_t total_bytes_written;
-  size_t total_bytes_read;
-  resource_stats_t resources;
+typedef struct
+{
+    const char *engine_name;
+    benchmark_config_t config;
+    operation_stats_t put_stats;
+    operation_stats_t get_stats;
+    operation_stats_t delete_stats;
+    operation_stats_t iteration_stats;
+    size_t total_bytes_written;
+    size_t total_bytes_read;
+    resource_stats_t resources;
 } benchmark_results_t;
 
 /* storage eng interface */
 typedef struct storage_engine_t storage_engine_t;
 
-typedef struct {
-  int (*open)(storage_engine_t **engine, const char *path);
+typedef struct
+{
+    int (*open)(storage_engine_t **engine, const char *path);
 
-  int (*close)(storage_engine_t *engine);
+    int (*close)(storage_engine_t *engine);
 
-  int (*put)(storage_engine_t *engine, const uint8_t *key, size_t key_size,
-             const uint8_t *value, size_t value_size);
+    int (*put)(storage_engine_t *engine, const uint8_t *key, size_t key_size, const uint8_t *value,
+               size_t value_size);
 
-  int (*get)(storage_engine_t *engine, const uint8_t *key, size_t key_size,
-             uint8_t **value, size_t *value_size);
+    int (*get)(storage_engine_t *engine, const uint8_t *key, size_t key_size, uint8_t **value,
+               size_t *value_size);
 
-  int (*del)(storage_engine_t *engine, const uint8_t *key, size_t key_size);
+    int (*del)(storage_engine_t *engine, const uint8_t *key, size_t key_size);
 
-  int (*iter_new)(storage_engine_t *engine, void **iter);
-  int (*iter_seek_to_first)(void *iter);
-  int (*iter_valid)(void *iter);
-  int (*iter_next)(void *iter);
-  int (*iter_key)(void *iter, uint8_t **key, size_t *key_size);
-  int (*iter_value)(void *iter, uint8_t **value, size_t *value_size);
-  int (*iter_free)(void *iter);
+    int (*iter_new)(storage_engine_t *engine, void **iter);
+    int (*iter_seek_to_first)(void *iter);
+    int (*iter_valid)(void *iter);
+    int (*iter_next)(void *iter);
+    int (*iter_key)(void *iter, uint8_t **key, size_t *key_size);
+    int (*iter_value)(void *iter, uint8_t **value, size_t *value_size);
+    int (*iter_free)(void *iter);
 
-  const char *name;
+    const char *name;
 } storage_engine_ops_t;
 
-struct storage_engine_t {
-  const storage_engine_ops_t *ops;
-  void *handle;
+struct storage_engine_t
+{
+    const storage_engine_ops_t *ops;
+    void *handle;
 };
 
 int run_benchmark(benchmark_config_t *config, benchmark_results_t **results);
-void generate_report(FILE *fp, benchmark_results_t *results,
-                     benchmark_results_t *baseline);
+void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline);
 void free_results(benchmark_results_t *results);
 
 const storage_engine_ops_t *get_engine_ops(const char *engine_name);
