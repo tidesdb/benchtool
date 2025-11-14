@@ -97,22 +97,31 @@ static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
     /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FSYNC, TDB_SYNC_FDATASYNC */
     handle->sync_mode = sync_enabled ? TDB_SYNC_FDATASYNC : TDB_SYNC_NONE;
     
+    /* get current column family stats to safely read config */
+    tidesdb_column_family_stat_t *stats = NULL;
+    if (tidesdb_get_column_family_stats(handle->db, "default", &stats) != 0)
+    {
+        return; /* failed to get stats, cannot update */
+    }
+    
+    /* populate update config from current stats */
     tidesdb_column_family_update_config_t update_config = {
-        .memtable_flush_size = handle->cf->config.memtable_flush_size,
-        .max_sstables_before_compaction = handle->cf->config.max_sstables_before_compaction,
-        .compaction_threads = handle->cf->config.compaction_threads,
-        .sl_max_level = handle->cf->config.sl_max_level,
-        .sl_probability = handle->cf->config.sl_probability,
-        .enable_bloom_filter = handle->cf->config.enable_bloom_filter,
-        .bloom_filter_fp_rate = handle->cf->config.bloom_filter_fp_rate,
-        .enable_background_compaction = handle->cf->config.enable_background_compaction,
-        .background_compaction_interval = handle->cf->config.background_compaction_interval,
-        .block_manager_cache_size = handle->cf->config.block_manager_cache_size,
+        .memtable_flush_size = stats->config.memtable_flush_size,
+        .max_sstables_before_compaction = stats->config.max_sstables_before_compaction,
+        .compaction_threads = stats->config.compaction_threads,
+        .sl_max_level = stats->config.sl_max_level,
+        .sl_probability = stats->config.sl_probability,
+        .enable_bloom_filter = stats->config.enable_bloom_filter,
+        .bloom_filter_fp_rate = stats->config.bloom_filter_fp_rate,
+        .enable_background_compaction = stats->config.enable_background_compaction,
+        .background_compaction_interval = stats->config.background_compaction_interval,
+        .block_manager_cache_size = stats->config.block_manager_cache_size,
         .sync_mode = handle->sync_mode
     };
     
-    (void)tidesdb_update_column_family_config(handle->db, "default", &update_config)
- 
+    free(stats);
+    
+    (void)tidesdb_update_column_family_config(handle->db, "default", &update_config);
 }
 
 static int tidesdb_close_impl(storage_engine_t *engine)
