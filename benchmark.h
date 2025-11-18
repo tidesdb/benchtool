@@ -109,6 +109,7 @@ typedef struct
     operation_stats_t iteration_stats;
     size_t total_bytes_written;
     size_t total_bytes_read;
+    size_t net_logical_data_size; /* net data size on disk after all operations */
     resource_stats_t resources;
 } benchmark_results_t;
 
