@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <dirent.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "benchmark.h"
 
@@ -217,6 +220,17 @@ int main(int argc, char **argv)
 
     if (config.compare_mode && strcmp(config.engine_name, "rocksdb") != 0)
     {
+        printf("\n=== Cleaning database for baseline comparison ===\n");
+
+        /* Remove database directory to ensure clean baseline */
+        char rm_cmd[2048];
+        snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", config.db_path);
+        int rm_result = system(rm_cmd);
+        if (rm_result != 0)
+        {
+            fprintf(stderr, "Warning: Failed to clean database path for baseline\n");
+        }
+
         printf("\n=== Running RocksDB Baseline ===\n\n");
         benchmark_config_t baseline_config = config;
         baseline_config.engine_name = "rocksdb";
@@ -238,7 +252,10 @@ int main(int argc, char **argv)
         }
     }
 
+    printf("\n");   /* ensure newline before report */
+    fflush(stdout); /* flush any buffered output */
     generate_report(report_fp, results, baseline_results);
+    fflush(report_fp); /* ensure report is written */
 
     if (report_fp != stdout)
     {
