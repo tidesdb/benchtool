@@ -3,7 +3,7 @@
 set -e  # Exit on error
 
 BENCH="./build/benchtool"
-DB_PATH="/media/agpmastersystem/0e938ae2-7b41-437b-a5ac-a27e9f111a4e/db-bench"
+DB_PATH="db-bench"
 RESULTS="benchmark_results.txt"
 
 # Set to "true" to enable fsync-fdatasync (durability), "false" for maximum performance
