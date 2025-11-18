@@ -509,8 +509,9 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         free(threads);
         free(contexts);
 
-        (*results)->total_bytes_written =
-            (size_t)config->num_operations * (config->key_size + config->value_size);
+        size_t data_size = (size_t)config->num_operations * (config->key_size + config->value_size);
+        (*results)->total_bytes_written += data_size;
+        (*results)->net_logical_data_size += data_size;
 
         printf("%.2f ops/sec\n", (*results)->put_stats.ops_per_second);
     }
@@ -662,6 +663,17 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         free(threads);
         free(contexts);
 
+        size_t data_size = (size_t)config->num_operations * (config->key_size + config->value_size);
+        (*results)->total_bytes_written += data_size;
+        if ((*results)->net_logical_data_size >= data_size)
+        {
+            (*results)->net_logical_data_size -= data_size;
+        }
+        else
+        {
+            (*results)->net_logical_data_size = 0;
+        }
+
         printf("%.2f ops/sec\n", (*results)->delete_stats.ops_per_second);
     }
 
@@ -724,10 +736,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         (*results)->resources.cpu_user_time + (*results)->resources.cpu_system_time;
     (*results)->resources.cpu_percent = (total_cpu_time / total_wall_time) * 100.0;
 
-    /* get storage size */
-    (*results)->resources.storage_size_bytes = get_directory_size(config->db_path);
-
-    /* calc amplification factors */
+    /* calc write and read amplification factors (before close) */
     size_t logical_data_written = (*results)->total_bytes_written;
     size_t logical_data_read = (*results)->total_bytes_read;
 
@@ -743,19 +752,25 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             (double)(*results)->resources.bytes_read / (double)logical_data_read;
     }
 
-    if (logical_data_written > 0 && (*results)->resources.storage_size_bytes > 0)
+    /* close database to ensure all data is flushed and compacted */
+    ops->close(engine);
+
+    /* get storage size after close for accurate space amplification */
+    (*results)->resources.storage_size_bytes = get_directory_size(config->db_path);
+
+    /* calc space amplification after close */
+    if ((*results)->net_logical_data_size > 0 && (*results)->resources.storage_size_bytes > 0)
     {
         (*results)->resources.space_amplification =
-            (double)(*results)->resources.storage_size_bytes / (double)logical_data_written;
+            (double)(*results)->resources.storage_size_bytes /
+            (double)(*results)->net_logical_data_size;
     }
-
-    ops->close(engine);
     return 0;
 }
 
 void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline)
 {
-    fprintf(fp, "\n=== Benchmark Results ===\n\n");
+    fprintf(fp, "\n**=== Benchmark Results ===**\n\n");
     const char *version = get_engine_version(results->engine_name);
     fprintf(fp, "Engine: %s (v%s)\n", results->engine_name, version);
     fprintf(fp, "Operations: %d\n", results->config.num_operations);

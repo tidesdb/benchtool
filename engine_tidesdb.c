@@ -69,6 +69,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     cf_config.sync_mode = TDB_SYNC_NONE; /* default */
     cf_config.memtable_flush_size = 64 * 1024 * 1024;
     cf_config.compaction_threads = 4;
+    cf_config.max_sstables_before_compaction = 8;
 
     if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
     {
