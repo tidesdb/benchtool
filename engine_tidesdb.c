@@ -23,7 +23,7 @@ typedef struct
 {
     tidesdb_t *db;
     tidesdb_column_family_t *cf;
-    tidesdb_sync_mode_t sync_mode; 
+    tidesdb_sync_mode_t sync_mode;
 } tidesdb_handle_t;
 
 typedef struct
@@ -68,7 +68,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     cf_config.block_manager_cache_size = 64 * 1024 * 1024;
     cf_config.sync_mode = TDB_SYNC_NONE; /* default */
     cf_config.memtable_flush_size = 64 * 1024 * 1024;
-
+    cf_config.compaction_threads = 4;
 
     if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
     {
@@ -95,15 +95,15 @@ static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
     /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FSYNC, TDB_SYNC_FDATASYNC */
-    handle->sync_mode = sync_enabled ? TDB_SYNC_FDATASYNC : TDB_SYNC_NONE;
-    
+    handle->sync_mode = sync_enabled ? TDB_SYNC_FULL : TDB_SYNC_NONE;
+
     /* get current column family stats to safely read config */
     tidesdb_column_family_stat_t *stats = NULL;
     if (tidesdb_get_column_family_stats(handle->db, "default", &stats) != 0)
     {
         return; /* failed to get stats, cannot update */
     }
-    
+
     /* populate update config from current stats */
     tidesdb_column_family_update_config_t update_config = {
         .memtable_flush_size = stats->config.memtable_flush_size,
@@ -116,11 +116,10 @@ static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
         .enable_background_compaction = stats->config.enable_background_compaction,
         .background_compaction_interval = stats->config.background_compaction_interval,
         .block_manager_cache_size = stats->config.block_manager_cache_size,
-        .sync_mode = handle->sync_mode
-    };
-    
+        .sync_mode = handle->sync_mode};
+
     free(stats);
-    
+
     (void)tidesdb_update_column_family_config(handle->db, "default", &update_config);
 }
 

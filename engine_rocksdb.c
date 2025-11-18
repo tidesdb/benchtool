@@ -51,8 +51,8 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     /* match TidesDB compression settings */
     rocksdb_options_set_compression(handle->options, rocksdb_lz4_compression);
 
-    /* use ClockCache (recommended over LRU) - 64 MB to match TidesDB */
-    handle->cache = rocksdb_cache_create_clock(64 * 1024 * 1024, -1, false);
+    /* use HyperClockCache (recommended over LRU) - 64 MB to match TidesDB */
+    handle->cache = rocksdb_cache_create_hyper_clock(64 * 1024 * 1024, 0);
     handle->table_options = rocksdb_block_based_options_create();
     rocksdb_block_based_options_set_block_cache(handle->table_options, handle->cache);
 
@@ -61,16 +61,15 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     rocksdb_block_based_options_set_filter_policy(handle->table_options, handle->filter_policy);
 
     /* use binary search index (not two-level) for better performance */
-    rocksdb_block_based_options_set_index_type(
-        handle->table_options, rocksdb_block_based_table_index_type_binary_search);
+    rocksdb_block_based_options_set_index_type(handle->table_options,
+                                               rocksdb_block_based_table_index_type_binary_search);
 
     /* pin L0 index and filter blocks in cache for faster access */
-    rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(
-        handle->table_options, 1);
+    rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(handle->table_options,
+                                                                            1);
 
-    /* use XXH3 checksum (faster than CRC32), matches TidesDB XXH3 checksums */
-    rocksdb_block_based_options_set_checksum_type(
-        handle->table_options, rocksdb_checksum_type_xxh3);
+    /* XXH3 checksum would be faster than CRC32 and match TidesDB,
+     * but it's not exposed in RocksDB C API.. */
 
     rocksdb_options_set_block_based_table_factory(handle->options, handle->table_options);
 
@@ -111,12 +110,8 @@ static int rocksdb_close_impl(storage_engine_t *engine)
     rocksdb_options_destroy(handle->options);
     rocksdb_readoptions_destroy(handle->roptions);
     rocksdb_writeoptions_destroy(handle->woptions);
-    if (handle->table_options)
-        rocksdb_block_based_options_destroy(handle->table_options);
-    if (handle->filter_policy)
-        rocksdb_filterpolicy_destroy(handle->filter_policy);
-    if (handle->cache)
-        rocksdb_cache_destroy(handle->cache);
+    /* table_options owns cache and filter_policy, so destroying it will clean them up */
+    if (handle->table_options) rocksdb_block_based_options_destroy(handle->table_options);
     free(handle);
     free(engine);
     return 0;

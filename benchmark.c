@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2024 Alex Gaetano Padula (TidesDB)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,51 +71,55 @@ static void generate_key(uint8_t *key, size_t key_size, int index, key_pattern_t
 {
     uint64_t key_num = 0;
 
+    /* ensure we have space for null terminator */
+    int available_digits = (int)(key_size - 1); /* -1 for null terminator */
+
     switch (pattern)
     {
         case KEY_PATTERN_SEQUENTIAL:
-            /* sequential key0000000001, key0000000002, ... */
-            snprintf((char *)key, key_size, "key%0*d", (int)(key_size - 4), index);
+            /* sequential use index directly for uniqueness */
+            snprintf((char *)key, key_size, "%0*d", available_digits, index);
             break;
 
         case KEY_PATTERN_RANDOM:
-            /* random hash-based keys */
+            /* deterministic shuffle using index - ensures uniqueness */
             key_num = index * 2654435761ULL;
-            snprintf((char *)key, key_size, "key%0*llx", (int)(key_size - 4),
+            snprintf((char *)key, key_size, "%0*llx", available_digits,
                      (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_ZIPFIAN:
             /* zipfian distribution -- 80% of accesses to 20% of keys */
+            /* intentionally creates duplicates for hot-key simulation */
             key_num = (uint64_t)zipfian_next(max_operations, 0.99);
-            snprintf((char *)key, key_size, "key%0*llu", (int)(key_size - 4),
+            snprintf((char *)key, key_size, "%0*llu", available_digits,
                      (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_UNIFORM:
-            /* true uniform random */
+            /* true uniform random, may have collisions */
             key_num = ((uint64_t)rand() << 32) | rand();
-            snprintf((char *)key, key_size, "key%0*llx", (int)(key_size - 4),
+            snprintf((char *)key, key_size, "%0*llx", available_digits,
                      (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_TIMESTAMP:
             /* monotonically increasing timestamp-like keys */
             key_num = ((uint64_t)time(NULL) << 32) | index;
-            snprintf((char *)key, key_size, "key%0*llx", (int)(key_size - 4),
+            snprintf((char *)key, key_size, "%0*llx", available_digits,
                      (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_REVERSE:
             /* reverse sequential */
             key_num = max_operations - index;
-            snprintf((char *)key, key_size, "key%0*llu", (int)(key_size - 4),
+            snprintf((char *)key, key_size, "%0*llu", available_digits,
                      (unsigned long long)key_num);
             break;
 
         default:
             /* fallback to sequential */
-            snprintf((char *)key, key_size, "key%0*d", (int)(key_size - 4), index);
+            snprintf((char *)key, key_size, "%0*d", available_digits, index);
             break;
     }
 }
@@ -207,8 +211,17 @@ static void get_cpu_stats(double *user_time, double *system_time)
     }
 }
 
-/* recursive calculate directory size */
-static size_t get_directory_size(const char *path)
+/* helper to check if we're in a column family directory */
+static int is_column_family_dir(const char *path)
+{
+    const char *last_slash = strrchr(path, '/');
+    if (!last_slash) return 0;
+
+    return 1;
+}
+
+/* recursive calculate directory size, excluding temp files in column family dirs */
+static size_t get_directory_size_recursive(const char *path, int is_cf_dir)
 {
     DIR *dir = opendir(path);
     if (!dir) return 0;
@@ -221,6 +234,29 @@ static size_t get_directory_size(const char *path)
     {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
+        /* only skip temp files if we're in a column family directory */
+        if (is_cf_dir)
+        {
+            size_t name_len = strlen(entry->d_name);
+
+            /* skip TidesDB temporary index files (trie_ prefix) */
+            if (strncmp(entry->d_name, "trie_", 5) == 0) continue;
+
+            /* skip TidesDB temporary sstable files (sstable_*.sst.tmp) */
+            if (strncmp(entry->d_name, "sstable_", 8) == 0 && name_len > 8 &&
+                strcmp(entry->d_name + name_len - 4, ".tmp") == 0)
+                continue;
+
+            /* skip files ending with .tmp */
+            if (name_len > 4 && strcmp(entry->d_name + name_len - 4, ".tmp") == 0) continue;
+
+            /* skip files starting with temp_ */
+            if (strncmp(entry->d_name, "temp_", 5) == 0) continue;
+
+            /* skip LOCK file */
+            if (strcmp(entry->d_name, "LOCK") == 0) continue;
+        }
+
         snprintf(filepath, sizeof(filepath), "%s/%s", path, entry->d_name);
 
         struct stat st;
@@ -228,7 +264,8 @@ static size_t get_directory_size(const char *path)
         {
             if (S_ISDIR(st.st_mode))
             {
-                total_size += get_directory_size(filepath);
+                /* subdirectories of db_path are column families */
+                total_size += get_directory_size_recursive(filepath, 1);
             }
             else if (S_ISREG(st.st_mode))
             {
@@ -239,6 +276,12 @@ static size_t get_directory_size(const char *path)
 
     closedir(dir);
     return total_size;
+}
+
+static size_t get_directory_size(const char *path)
+{
+    /* start at db_path level (is_cf_dir = 0), subdirectories will be column families */
+    return get_directory_size_recursive(path, 0);
 }
 
 static void generate_value(uint8_t *value, size_t value_size, int index)
@@ -283,9 +326,6 @@ static void *benchmark_put_thread(void *arg)
     uint8_t *key = malloc(ctx->config->key_size);
     uint8_t *value = malloc(ctx->config->value_size);
 
-    ctx->latencies = malloc(ctx->ops_per_thread * sizeof(double));
-    ctx->latency_count = 0;
-
     int start_index = ctx->thread_id * ctx->ops_per_thread;
 
     for (int i = 0; i < ctx->ops_per_thread; i++)
@@ -311,9 +351,6 @@ static void *benchmark_get_thread(void *arg)
 {
     thread_context_t *ctx = (thread_context_t *)arg;
     uint8_t *key = malloc(ctx->config->key_size);
-
-    ctx->latencies = malloc(ctx->ops_per_thread * sizeof(double));
-    ctx->latency_count = 0;
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
 
@@ -342,9 +379,6 @@ static void *benchmark_delete_thread(void *arg)
     thread_context_t *ctx = (thread_context_t *)arg;
     uint8_t *key = malloc(ctx->config->key_size);
 
-    ctx->latencies = malloc(ctx->ops_per_thread * sizeof(double));
-    ctx->latency_count = 0;
-
     int start_index = ctx->thread_id * ctx->ops_per_thread;
 
     for (int i = 0; i < ctx->ops_per_thread; i++)
@@ -353,10 +387,18 @@ static void *benchmark_delete_thread(void *arg)
                      ctx->config->num_operations);
 
         double start = get_time_microseconds();
-        ctx->engine->ops->del(ctx->engine, key, ctx->config->key_size);
+        int del_result = ctx->engine->ops->del(ctx->engine, key, ctx->config->key_size);
         double end = get_time_microseconds();
 
+        /* track latency even if delete fails (key not found is OK) */
         ctx->latencies[ctx->latency_count++] = end - start;
+
+        /* progress indicator every 10K ops for debugging */
+        if ((i + 1) % 10000 == 0 && ctx->thread_id == 0)
+        {
+            fprintf(stderr, ".");
+            fflush(stderr);
+        }
     }
 
     free(key);
@@ -387,16 +429,19 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         return -1;
     }
 
-    /* capture baseline resource metrics */
-    size_t baseline_rss, baseline_vms, baseline_io_read, baseline_io_write;
-    double baseline_cpu_user, baseline_cpu_system;
-    double benchmark_start_time = get_time_microseconds();
-
-    get_memory_usage(&baseline_rss, &baseline_vms);
-    get_io_stats(&baseline_io_read, &baseline_io_write);
-    get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+    /* apply sync mode if supported */
+    if (engine->ops->set_sync)
+    {
+        engine->ops->set_sync(engine, config->sync_enabled);
+    }
 
     printf("Running %s benchmark...\n", ops->name);
+
+    /* baseline captured after first thread allocation to exclude benchmark infrastructure */
+    size_t baseline_rss = 0, baseline_vms = 0, baseline_io_read = 0, baseline_io_write = 0;
+    double baseline_cpu_user = 0.0, baseline_cpu_system = 0.0;
+    double benchmark_start_time = get_time_microseconds();
+    int baseline_captured = 0;
 
     if (config->workload_type == WORKLOAD_WRITE || config->workload_type == WORKLOAD_MIXED)
     {
@@ -407,6 +452,20 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].latencies = malloc(ops_per_thread * sizeof(double));
+        }
+
+        if (!baseline_captured)
+        {
+            get_memory_usage(&baseline_rss, &baseline_vms);
+            get_io_stats(&baseline_io_read, &baseline_io_write);
+            get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+            baseline_captured = 1;
+        }
+
         double start_time = get_time_microseconds();
 
         for (int i = 0; i < config->num_threads; i++)
@@ -415,6 +474,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             contexts[i].engine = engine;
             contexts[i].thread_id = i;
             contexts[i].ops_per_thread = ops_per_thread;
+            contexts[i].latency_count = 0;
             pthread_create(&threads[i], NULL, benchmark_put_thread, &contexts[i]);
         }
 
@@ -464,6 +524,20 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].latencies = malloc(ops_per_thread * sizeof(double));
+        }
+
+        if (!baseline_captured)
+        {
+            get_memory_usage(&baseline_rss, &baseline_vms);
+            get_io_stats(&baseline_io_read, &baseline_io_write);
+            get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+            baseline_captured = 1;
+        }
+
         double start_time = get_time_microseconds();
 
         for (int i = 0; i < config->num_threads; i++)
@@ -472,6 +546,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             contexts[i].engine = engine;
             contexts[i].thread_id = i;
             contexts[i].ops_per_thread = ops_per_thread;
+            contexts[i].latency_count = 0;
             pthread_create(&threads[i], NULL, benchmark_get_thread, &contexts[i]);
         }
 
@@ -506,7 +581,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         free(threads);
         free(contexts);
 
-        (*results)->total_bytes_read = (size_t)config->num_operations * config->value_size;
+        (*results)->total_bytes_read =
+            (size_t)config->num_operations * (config->key_size + config->value_size);
 
         printf("%.2f ops/sec\n", (*results)->get_stats.ops_per_second);
     }
@@ -520,6 +596,20 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].latencies = malloc(ops_per_thread * sizeof(double));
+        }
+
+        if (!baseline_captured)
+        {
+            get_memory_usage(&baseline_rss, &baseline_vms);
+            get_io_stats(&baseline_io_read, &baseline_io_write);
+            get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+            baseline_captured = 1;
+        }
+
         double start_time = get_time_microseconds();
 
         for (int i = 0; i < config->num_threads; i++)
@@ -528,12 +618,22 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             contexts[i].engine = engine;
             contexts[i].thread_id = i;
             contexts[i].ops_per_thread = ops_per_thread;
-            pthread_create(&threads[i], NULL, benchmark_delete_thread, &contexts[i]);
+            contexts[i].latency_count = 0;
+            int rc = pthread_create(&threads[i], NULL, benchmark_delete_thread, &contexts[i]);
+            if (rc != 0)
+            {
+                fprintf(stderr, "Failed to create thread %d\n", i);
+            }
         }
+
+        fprintf(stderr, "[%d threads started] ", config->num_threads);
+        fflush(stderr);
 
         for (int i = 0; i < config->num_threads; i++)
         {
             pthread_join(threads[i], NULL);
+            fprintf(stderr, "[T%d done] ", i);
+            fflush(stderr);
         }
 
         double end_time = get_time_microseconds();
@@ -625,29 +725,28 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
     (*results)->resources.cpu_percent = (total_cpu_time / total_wall_time) * 100.0;
 
     /* get storage size */
-    (*results)->resources.db_size_bytes = get_directory_size(config->db_path);
+    (*results)->resources.storage_size_bytes = get_directory_size(config->db_path);
 
     /* calc amplification factors */
-    size_t logical_data_written =
-        (size_t)config->num_operations * (config->key_size + config->value_size);
+    size_t logical_data_written = (*results)->total_bytes_written;
     size_t logical_data_read = (*results)->total_bytes_read;
 
-    if (logical_data_written > 0)
+    if (logical_data_written > 0 && (*results)->resources.bytes_written > 0)
     {
         (*results)->resources.write_amplification =
             (double)(*results)->resources.bytes_written / (double)logical_data_written;
     }
 
-    if (logical_data_read > 0)
+    if (logical_data_read > 0 && (*results)->resources.bytes_read > 0)
     {
         (*results)->resources.read_amplification =
             (double)(*results)->resources.bytes_read / (double)logical_data_read;
     }
 
-    if (logical_data_written > 0)
+    if (logical_data_written > 0 && (*results)->resources.storage_size_bytes > 0)
     {
         (*results)->resources.space_amplification =
-            (double)(*results)->resources.db_size_bytes / (double)logical_data_written;
+            (double)(*results)->resources.storage_size_bytes / (double)logical_data_written;
     }
 
     ops->close(engine);
@@ -720,7 +819,7 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
     fprintf(fp, "  CPU System Time: %.3f seconds\n", results->resources.cpu_system_time);
     fprintf(fp, "  CPU Utilization: %.1f%%\n", results->resources.cpu_percent);
     fprintf(fp, "  Database Size: %.2f MB\n\n",
-            results->resources.db_size_bytes / (1024.0 * 1024.0));
+            results->resources.storage_size_bytes / (1024.0 * 1024.0));
 
     /* amplification factors section */
     fprintf(fp, "Amplification Factors:\n");
@@ -771,23 +870,41 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
 
         /* resource comparison */
         fprintf(fp, "\nResource Comparison:\n");
-        fprintf(fp, "  Memory (RSS): %.2f MB vs %.2f MB\n",
+        fprintf(fp, "  Peak RSS: %.2f MB vs %.2f MB\n",
                 results->resources.peak_rss_bytes / (1024.0 * 1024.0),
                 baseline->resources.peak_rss_bytes / (1024.0 * 1024.0));
+        fprintf(fp, "  Peak VMS: %.2f MB vs %.2f MB\n",
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                baseline->resources.peak_vms_bytes / (1024.0 * 1024.0));
+        fprintf(fp, "  Disk Reads: %.2f MB vs %.2f MB\n",
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                baseline->resources.bytes_read / (1024.0 * 1024.0));
         fprintf(fp, "  Disk Writes: %.2f MB vs %.2f MB\n",
                 results->resources.bytes_written / (1024.0 * 1024.0),
                 baseline->resources.bytes_written / (1024.0 * 1024.0));
-        fprintf(fp, "  Database Size: %.2f MB vs %.2f MB\n",
-                results->resources.db_size_bytes / (1024.0 * 1024.0),
-                baseline->resources.db_size_bytes / (1024.0 * 1024.0));
+        fprintf(fp, "  CPU User Time: %.3f s vs %.3f s\n", results->resources.cpu_user_time,
+                baseline->resources.cpu_user_time);
+        fprintf(fp, "  CPU System Time: %.3f s vs %.3f s\n", results->resources.cpu_system_time,
+                baseline->resources.cpu_system_time);
+        fprintf(fp, "  CPU Utilization: %.1f%% vs %.1f%%\n", results->resources.cpu_percent,
+                baseline->resources.cpu_percent);
+        fprintf(fp, "  Database Size: %.2f MB vs %.2f MB\n\n",
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                baseline->resources.storage_size_bytes / (1024.0 * 1024.0));
 
         /* amplification comparison */
+        fprintf(fp, "Amplification Comparison:\n");
         if (results->resources.write_amplification > 0 &&
             baseline->resources.write_amplification > 0)
         {
             fprintf(fp, "  Write Amplification: %.2fx vs %.2fx\n",
                     results->resources.write_amplification,
                     baseline->resources.write_amplification);
+        }
+        if (results->resources.read_amplification > 0 && baseline->resources.read_amplification > 0)
+        {
+            fprintf(fp, "  Read Amplification: %.2fx vs %.2fx\n",
+                    results->resources.read_amplification, baseline->resources.read_amplification);
         }
         if (results->resources.space_amplification > 0 &&
             baseline->resources.space_amplification > 0)
