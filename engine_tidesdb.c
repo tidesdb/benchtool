@@ -46,13 +46,12 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
         return -1;
     }
 
-    tidesdb_config_t config;
-    memset(&config, 0, sizeof(tidesdb_config_t));
-    strncpy(config.db_path, path, sizeof(config.db_path) - 1);
-    config.db_path[sizeof(config.db_path) - 1] = '\0';
+    tidesdb_config_t config = tidesdb_default_config();
+    config.db_path = (char *)path; /* tidesdb_open makes its own copy */
     config.num_flush_threads = 4;
     config.num_compaction_threads = 4;
     config.enable_debug_logging = 0;
+    config.max_open_sstables = 512;
 
     if (tidesdb_open(&config, &handle->db) != 0)
     {
@@ -61,14 +60,13 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
         return -1;
     }
     tidesdb_column_family_config_t cf_config = tidesdb_default_column_family_config();
-    cf_config.enable_compression = 1;
-    cf_config.compression_algorithm = COMPRESS_LZ4;
+    cf_config.compression_algorithm = LZ4_COMPRESSION;
     cf_config.enable_bloom_filter = 1;
     cf_config.enable_block_indexes = 1;
-    cf_config.block_manager_cache_size = 64 * 1024 * 1024;
+    cf_config.block_manager_cache_size = 32 * 1024 * 1024;
     cf_config.sync_mode = TDB_SYNC_NONE; /* default */
-    cf_config.memtable_flush_size = 64 * 1024 * 1024;
-    cf_config.compaction_threads = 4;
+    cf_config.write_buffer_size = 64 * 1024 * 1024;
+    cf_config.enable_background_compaction = 1;
 
     if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
     {
@@ -94,38 +92,24 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
 static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
-    /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FSYNC, TDB_SYNC_FDATASYNC */
+    /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FULL */
     handle->sync_mode = sync_enabled ? TDB_SYNC_FULL : TDB_SYNC_NONE;
 
-    /* get current column family stats to safely read config */
-    tidesdb_column_family_stat_t *stats = NULL;
-    if (tidesdb_get_column_family_stats(handle->db, "default", &stats) != 0)
-    {
-        return; /* failed to get stats, cannot update */
-    }
+    /* update column family config with new sync mode */
+    tidesdb_column_family_config_t new_config = tidesdb_default_column_family_config();
+    new_config.sync_mode = handle->sync_mode;
+    new_config.write_buffer_size = 64 * 1024 * 1024; /* 64MB - match initial config */
+    new_config.compression_algorithm = LZ4_COMPRESSION;
+    new_config.enable_bloom_filter = 1;
+    new_config.enable_block_indexes = 1;
 
-    /* populate update config from current stats */
-    tidesdb_column_family_update_config_t update_config = {
-        .memtable_flush_size = stats->config.memtable_flush_size,
-        .max_sstables_before_compaction = stats->config.max_sstables_before_compaction,
-        .compaction_threads = stats->config.compaction_threads,
-        .sl_max_level = stats->config.sl_max_level,
-        .sl_probability = stats->config.sl_probability,
-        .enable_bloom_filter = stats->config.enable_bloom_filter,
-        .bloom_filter_fp_rate = stats->config.bloom_filter_fp_rate,
-        .enable_background_compaction = stats->config.enable_background_compaction,
-        .background_compaction_interval = stats->config.background_compaction_interval,
-        .block_manager_cache_size = stats->config.block_manager_cache_size,
-        .sync_mode = handle->sync_mode};
-
-    free(stats);
-
-    (void)tidesdb_update_column_family_config(handle->db, "default", &update_config);
+    (void)tidesdb_cf_update_runtime_config(handle->cf, &new_config, 0);
 }
 
 static int tidesdb_close_impl(storage_engine_t *engine)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+    /* tidesdb_close() frees db_path internally, so we don't free it here */
     tidesdb_close(handle->db);
     free(handle);
     free(engine);
@@ -138,9 +122,9 @@ static int tidesdb_put_impl(storage_engine_t *engine, const uint8_t *key, size_t
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
     tidesdb_txn_t *txn = NULL;
 
-    tidesdb_txn_begin(handle->db, handle->cf, &txn);
-    int result = tidesdb_txn_put(txn, key, key_size, value, value_size, -1);
-    tidesdb_txn_commit(txn);
+    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
+    int result = tidesdb_txn_put(txn, handle->cf, key, key_size, value, value_size, 0);
+    if (result == 0) result = tidesdb_txn_commit(txn);
     tidesdb_txn_free(txn);
 
     return result;
@@ -152,8 +136,8 @@ static int tidesdb_get_impl(storage_engine_t *engine, const uint8_t *key, size_t
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
     tidesdb_txn_t *txn = NULL;
 
-    tidesdb_txn_begin_read(handle->db, handle->cf, &txn);
-    int result = tidesdb_txn_get(txn, key, key_size, value, value_size);
+    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
+    int result = tidesdb_txn_get(txn, handle->cf, key, key_size, value, value_size);
     tidesdb_txn_free(txn);
 
     return result;
@@ -164,9 +148,9 @@ static int tidesdb_del_impl(storage_engine_t *engine, const uint8_t *key, size_t
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
     tidesdb_txn_t *txn = NULL;
 
-    tidesdb_txn_begin(handle->db, handle->cf, &txn);
-    int result = tidesdb_txn_delete(txn, key, key_size);
-    tidesdb_txn_commit(txn);
+    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
+    int result = tidesdb_txn_delete(txn, handle->cf, key, key_size);
+    if (result == 0) result = tidesdb_txn_commit(txn);
     tidesdb_txn_free(txn);
 
     return result;
@@ -180,15 +164,15 @@ static int tidesdb_iter_new_impl(storage_engine_t *engine, void **iter)
     tidesdb_iter_wrapper_t *wrapper = malloc(sizeof(tidesdb_iter_wrapper_t));
     if (!wrapper) return -1;
 
-    /* create a fresh read transaction for this iteration */
-    if (tidesdb_txn_begin_read(handle->db, handle->cf, &wrapper->txn) != 0)
+    /* create a fresh transaction for this iteration */
+    if (tidesdb_txn_begin(handle->db, &wrapper->txn) != 0)
     {
         free(wrapper);
         return -1;
     }
 
-    /* create iterator from the transaction */
-    if (tidesdb_iter_new(wrapper->txn, &wrapper->iter) != 0)
+    /* create iterator from the transaction for the specific CF */
+    if (tidesdb_iter_new(wrapper->txn, handle->cf, &wrapper->iter) != 0)
     {
         tidesdb_txn_free(wrapper->txn);
         free(wrapper);
@@ -201,41 +185,61 @@ static int tidesdb_iter_new_impl(storage_engine_t *engine, void **iter)
 
 static int tidesdb_iter_seek_to_first_impl(void *iter)
 {
+    if (!iter) return -1;
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return -1;
     return tidesdb_iter_seek_to_first(wrapper->iter);
 }
 
 static int tidesdb_iter_valid_impl(void *iter)
 {
+    if (!iter) return 0;
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return 0;
     return tidesdb_iter_valid(wrapper->iter);
 }
 
 static int tidesdb_iter_next_impl(void *iter)
 {
+    if (!iter) return -1;
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return -1;
     return tidesdb_iter_next(wrapper->iter);
 }
 
 static int tidesdb_iter_key_impl(void *iter, uint8_t **key, size_t *key_size)
 {
+    if (!iter || !key || !key_size) return -1;
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return -1;
     return tidesdb_iter_key(wrapper->iter, key, key_size);
 }
 
 static int tidesdb_iter_value_impl(void *iter, uint8_t **value, size_t *value_size)
 {
+    if (!iter || !value || !value_size) return -1;
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return -1;
     return tidesdb_iter_value(wrapper->iter, value, value_size);
 }
 
 static int tidesdb_iter_free_impl(void *iter)
 {
+    if (!iter) return 0;
+
     tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
 
-    tidesdb_iter_free(wrapper->iter);
+    if (wrapper->iter)
+    {
+        tidesdb_iter_free(wrapper->iter);
+        wrapper->iter = NULL;
+    }
 
-    tidesdb_txn_free(wrapper->txn);
+    if (wrapper->txn)
+    {
+        tidesdb_txn_free(wrapper->txn);
+        wrapper->txn = NULL;
+    }
 
     free(wrapper);
 

@@ -82,8 +82,12 @@ static void generate_key(uint8_t *key, size_t key_size, int index, key_pattern_t
             break;
 
         case KEY_PATTERN_RANDOM:
-            /* deterministic shuffle using index - ensures uniqueness */
-            key_num = index * 2654435761ULL;
+            /* use index directly in hex format to ensure uniqueness */
+            /* shuffle bits for randomness while preserving uniqueness */
+            key_num = index;
+            /* bit-reverse for pseudo-random distribution */
+            key_num = ((key_num & 0xFFFF0000) >> 16) | ((key_num & 0x0000FFFF) << 16);
+            key_num = ((key_num & 0xFF00FF00) >> 8) | ((key_num & 0x00FF00FF) << 8);
             snprintf((char *)key, key_size, "%0*llx", available_digits,
                      (unsigned long long)key_num);
             break;

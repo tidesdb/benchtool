@@ -3,7 +3,7 @@
 set -e  # Exit on error
 
 BENCH="./build/benchtool"
-DB_PATH="./db-bench"
+DB_PATH="db-bench"
 RESULTS="benchmark_results.txt"
 
 # Set to "true" to enable fsync-fdatasync (durability), "false" for maximum performance
