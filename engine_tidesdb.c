@@ -51,7 +51,8 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     config.num_flush_threads = 4;
     config.num_compaction_threads = 4;
     config.enable_debug_logging = 0;
-    config.max_open_sstables = 512;
+    config.max_open_sstables = 100;
+    config.block_cache_size = 64 * 1024 * 1024; /* 64MB global block cache */
 
     if (tidesdb_open(&config, &handle->db) != 0)
     {
@@ -63,10 +64,8 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     cf_config.compression_algorithm = LZ4_COMPRESSION;
     cf_config.enable_bloom_filter = 1;
     cf_config.enable_block_indexes = 1;
-    cf_config.block_manager_cache_size = 32 * 1024 * 1024;
     cf_config.sync_mode = TDB_SYNC_NONE; /* default */
     cf_config.write_buffer_size = 64 * 1024 * 1024;
-    cf_config.enable_background_compaction = 1;
 
     if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
     {
@@ -103,7 +102,7 @@ static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
     new_config.enable_bloom_filter = 1;
     new_config.enable_block_indexes = 1;
 
-    (void)tidesdb_cf_update_runtime_config(handle->cf, &new_config, 0);
+    (void)tidesdb_cf_update_runtime_config(handle->cf, &new_config, 0); /* don't persist */
 }
 
 static int tidesdb_close_impl(storage_engine_t *engine)
