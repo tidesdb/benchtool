@@ -331,19 +331,57 @@ static void *benchmark_put_thread(void *arg)
     uint8_t *value = malloc(ctx->config->value_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int batch_size = ctx->config->batch_size;
 
-    for (int i = 0; i < ctx->ops_per_thread; i++)
+    /* Use batched API if available, otherwise fall back to single operations */
+    if (ctx->engine->ops->batch_begin && ctx->engine->ops->batch_put &&
+        ctx->engine->ops->batch_commit && batch_size > 1)
     {
-        generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
-                     ctx->config->num_operations);
-        generate_value(value, ctx->config->value_size, start_index + i);
+        /* Batched path - group operations into transactions */
+        for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
+        {
+            void *batch_ctx = NULL;
+            double batch_start = get_time_microseconds();
 
-        double start = get_time_microseconds();
-        ctx->engine->ops->put(ctx->engine, key, ctx->config->key_size, value,
-                              ctx->config->value_size);
-        double end = get_time_microseconds();
+            if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
 
-        ctx->latencies[ctx->latency_count++] = end - start;
+            int batch_end =
+                (i + batch_size < ctx->ops_per_thread) ? i + batch_size : ctx->ops_per_thread;
+
+            for (int j = i; j < batch_end; j++)
+            {
+                generate_key(key, ctx->config->key_size, start_index + j, ctx->config->key_pattern,
+                             ctx->config->num_operations);
+                generate_value(value, ctx->config->value_size, start_index + j);
+
+                ctx->engine->ops->batch_put(batch_ctx, ctx->engine, key, ctx->config->key_size,
+                                            value, ctx->config->value_size);
+            }
+
+            ctx->engine->ops->batch_commit(batch_ctx);
+            double batch_end_time = get_time_microseconds();
+
+            /* Record latency for the entire batch */
+            double batch_latency = batch_end_time - batch_start;
+            ctx->latencies[ctx->latency_count++] = batch_latency;
+        }
+    }
+    else
+    {
+        /* Single operation path (legacy) */
+        for (int i = 0; i < ctx->ops_per_thread; i++)
+        {
+            generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
+                         ctx->config->num_operations);
+            generate_value(value, ctx->config->value_size, start_index + i);
+
+            double start = get_time_microseconds();
+            ctx->engine->ops->put(ctx->engine, key, ctx->config->key_size, value,
+                                  ctx->config->value_size);
+            double end = get_time_microseconds();
+
+            ctx->latencies[ctx->latency_count++] = end - start;
+        }
     }
 
     free(key);
@@ -384,24 +422,67 @@ static void *benchmark_delete_thread(void *arg)
     uint8_t *key = malloc(ctx->config->key_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int batch_size = ctx->config->batch_size;
 
-    for (int i = 0; i < ctx->ops_per_thread; i++)
+    /* Use batched API if available, otherwise fall back to single operations */
+    if (ctx->engine->ops->batch_begin && ctx->engine->ops->batch_delete &&
+        ctx->engine->ops->batch_commit && batch_size > 1)
     {
-        generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
-                     ctx->config->num_operations);
-
-        double start = get_time_microseconds();
-        int del_result = ctx->engine->ops->del(ctx->engine, key, ctx->config->key_size);
-        double end = get_time_microseconds();
-
-        /* track latency even if delete fails (key not found is OK) */
-        ctx->latencies[ctx->latency_count++] = end - start;
-
-        /* progress indicator every 10K ops for debugging */
-        if ((i + 1) % 10000 == 0 && ctx->thread_id == 0)
+        /* Batched path - group operations into transactions */
+        for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
-            fprintf(stderr, ".");
-            fflush(stderr);
+            void *batch_ctx = NULL;
+            double batch_start = get_time_microseconds();
+
+            if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
+
+            int batch_end =
+                (i + batch_size < ctx->ops_per_thread) ? i + batch_size : ctx->ops_per_thread;
+
+            for (int j = i; j < batch_end; j++)
+            {
+                generate_key(key, ctx->config->key_size, start_index + j, ctx->config->key_pattern,
+                             ctx->config->num_operations);
+
+                ctx->engine->ops->batch_delete(batch_ctx, ctx->engine, key, ctx->config->key_size);
+            }
+
+            ctx->engine->ops->batch_commit(batch_ctx);
+            double batch_end_time = get_time_microseconds();
+
+            /* Record latency for the entire batch */
+            double batch_latency = batch_end_time - batch_start;
+            ctx->latencies[ctx->latency_count++] = batch_latency;
+
+            /* progress indicator every 10K ops for debugging */
+            if ((i + batch_size) % 10000 < batch_size && ctx->thread_id == 0)
+            {
+                fprintf(stderr, ".");
+                fflush(stderr);
+            }
+        }
+    }
+    else
+    {
+        /* Single operation path (legacy) */
+        for (int i = 0; i < ctx->ops_per_thread; i++)
+        {
+            generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
+                         ctx->config->num_operations);
+
+            double start = get_time_microseconds();
+            int del_result = ctx->engine->ops->del(ctx->engine, key, ctx->config->key_size);
+            double end = get_time_microseconds();
+
+            /* track latency even if delete fails (key not found is OK) */
+            ctx->latencies[ctx->latency_count++] = end - start;
+
+            /* progress indicator every 10K ops for debugging */
+            if ((i + 1) % 10000 == 0 && ctx->thread_id == 0)
+            {
+                fprintf(stderr, ".");
+                fflush(stderr);
+            }
         }
     }
 

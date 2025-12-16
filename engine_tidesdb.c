@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tidesdb/tidesdb.h>
@@ -24,12 +26,13 @@ typedef struct
     tidesdb_t *db;
     tidesdb_column_family_t *cf;
     tidesdb_sync_mode_t sync_mode;
+    tidesdb_column_family_config_t cf_config; /* store config to avoid duplication */
 } tidesdb_handle_t;
 
 typedef struct
 {
     tidesdb_iter_t *iter;
-    tidesdb_txn_t *txn;
+    tidesdb_txn_t *txn; /* read-only transaction for consistent iteration */
 } tidesdb_iter_wrapper_t;
 
 static const storage_engine_ops_t tidesdb_ops;
@@ -48,26 +51,26 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
 
     tidesdb_config_t config = tidesdb_default_config();
     config.db_path = (char *)path; /* tidesdb_open makes its own copy */
-    config.num_flush_threads = 4;
-    config.num_compaction_threads = 4;
-    config.enable_debug_logging = 0;
-    config.max_open_sstables = 100;
-    config.block_cache_size = 64 * 1024 * 1024; /* 64MB global block cache */
-
+    config.num_flush_threads = 2;
+    config.num_compaction_threads = 2;
+    config.log_level = TDB_LOG_NONE;
+    config.block_cache_size = 64 * 1024 * 1024; /* 1gb */
     if (tidesdb_open(&config, &handle->db) != 0)
     {
         free(handle);
         free(*engine);
         return -1;
     }
-    tidesdb_column_family_config_t cf_config = tidesdb_default_column_family_config();
-    cf_config.compression_algorithm = LZ4_COMPRESSION;
-    cf_config.enable_bloom_filter = 1;
-    cf_config.enable_block_indexes = 1;
-    cf_config.sync_mode = TDB_SYNC_NONE; /* default */
-    cf_config.write_buffer_size = 64 * 1024 * 1024;
 
-    if (tidesdb_create_column_family(handle->db, "default", &cf_config) != 0)
+    handle->cf_config = tidesdb_default_column_family_config();
+    handle->cf_config.compression_algorithm = LZ4_COMPRESSION;
+    handle->cf_config.enable_bloom_filter = 1;
+    handle->cf_config.enable_block_indexes = 1;
+    handle->cf_config.index_sample_ratio = 1;
+
+    handle->cf_config.sync_mode = TDB_SYNC_NONE; /* default */
+    handle->cf_config.write_buffer_size = 64 * 1024 * 1024;
+    if (tidesdb_create_column_family(handle->db, "default", &handle->cf_config) != 0)
     {
         /* column family might already exist, which is fine */
     }
@@ -91,18 +94,17 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
 static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
-    /* TidesDB sync modes TDB_SYNC_NONE, TDB_SYNC_FULL */
     handle->sync_mode = sync_enabled ? TDB_SYNC_FULL : TDB_SYNC_NONE;
 
     /* update column family config with new sync mode */
-    tidesdb_column_family_config_t new_config = tidesdb_default_column_family_config();
-    new_config.sync_mode = handle->sync_mode;
-    new_config.write_buffer_size = 64 * 1024 * 1024; /* 64MB - match initial config */
-    new_config.compression_algorithm = LZ4_COMPRESSION;
-    new_config.enable_bloom_filter = 1;
-    new_config.enable_block_indexes = 1;
+    handle->cf_config.sync_mode = handle->sync_mode;
 
-    (void)tidesdb_cf_update_runtime_config(handle->cf, &new_config, 0); /* don't persist */
+    int result = tidesdb_cf_update_runtime_config(handle->cf, &handle->cf_config, 0);
+    if (result != 0)
+    {
+        fprintf(stderr, "Warning: Failed to update sync mode to %s\n",
+                sync_enabled ? "FULL" : "NONE");
+    }
 }
 
 static int tidesdb_close_impl(storage_engine_t *engine)
@@ -155,6 +157,45 @@ static int tidesdb_del_impl(storage_engine_t *engine, const uint8_t *key, size_t
     return result;
 }
 
+static int tidesdb_batch_begin_impl(storage_engine_t *engine, void **batch_ctx)
+{
+    tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+    tidesdb_txn_t *txn = NULL;
+
+    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
+
+    *batch_ctx = txn;
+    return 0;
+}
+
+static int tidesdb_batch_put_impl(void *batch_ctx, storage_engine_t *engine, const uint8_t *key,
+                                  size_t key_size, const uint8_t *value, size_t value_size)
+{
+    tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+    tidesdb_txn_t *txn = (tidesdb_txn_t *)batch_ctx;
+
+    return tidesdb_txn_put(txn, handle->cf, key, key_size, value, value_size, 0);
+}
+
+static int tidesdb_batch_commit_impl(void *batch_ctx)
+{
+    tidesdb_txn_t *txn = (tidesdb_txn_t *)batch_ctx;
+
+    int result = tidesdb_txn_commit(txn);
+    tidesdb_txn_free(txn);
+
+    return result;
+}
+
+static int tidesdb_batch_delete_impl(void *batch_ctx, storage_engine_t *engine, const uint8_t *key,
+                                     size_t key_size)
+{
+    tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+    tidesdb_txn_t *txn = (tidesdb_txn_t *)batch_ctx;
+
+    return tidesdb_txn_delete(txn, handle->cf, key, key_size);
+}
+
 static int tidesdb_iter_new_impl(storage_engine_t *engine, void **iter)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
@@ -163,7 +204,7 @@ static int tidesdb_iter_new_impl(storage_engine_t *engine, void **iter)
     tidesdb_iter_wrapper_t *wrapper = malloc(sizeof(tidesdb_iter_wrapper_t));
     if (!wrapper) return -1;
 
-    /* create a fresh transaction for this iteration */
+    /* create a fresh read-only transaction for this iteration */
     if (tidesdb_txn_begin(handle->db, &wrapper->txn) != 0)
     {
         free(wrapper);
@@ -251,6 +292,10 @@ static const storage_engine_ops_t tidesdb_ops = {
     .put = tidesdb_put_impl,
     .get = tidesdb_get_impl,
     .del = tidesdb_del_impl,
+    .batch_begin = tidesdb_batch_begin_impl,
+    .batch_put = tidesdb_batch_put_impl,
+    .batch_delete = tidesdb_batch_delete_impl,
+    .batch_commit = tidesdb_batch_commit_impl,
     .iter_new = tidesdb_iter_new_impl,
     .iter_seek_to_first = tidesdb_iter_seek_to_first_impl,
     .iter_valid = tidesdb_iter_valid_impl,

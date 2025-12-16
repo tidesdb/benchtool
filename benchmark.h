@@ -109,7 +109,7 @@ typedef struct
     operation_stats_t iteration_stats;
     size_t total_bytes_written;
     size_t total_bytes_read;
-    size_t net_logical_data_size; /* net data size on disk after all operations */
+    size_t net_logical_data_size;
     resource_stats_t resources;
 } benchmark_results_t;
 
@@ -129,6 +129,14 @@ typedef struct
                size_t *value_size);
 
     int (*del)(storage_engine_t *engine, const uint8_t *key, size_t key_size);
+
+    /* Batched operations for better performance */
+    int (*batch_begin)(storage_engine_t *engine, void **batch_ctx);
+    int (*batch_put)(void *batch_ctx, storage_engine_t *engine, const uint8_t *key, size_t key_size,
+                     const uint8_t *value, size_t value_size);
+    int (*batch_delete)(void *batch_ctx, storage_engine_t *engine, const uint8_t *key,
+                        size_t key_size);
+    int (*batch_commit)(void *batch_ctx);
 
     int (*iter_new)(storage_engine_t *engine, void **iter);
     int (*iter_seek_to_first)(void *iter);

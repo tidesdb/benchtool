@@ -58,10 +58,10 @@ static void print_usage(const char *prog)
 int main(int argc, char **argv)
 {
     benchmark_config_t config = {.engine_name = "tidesdb",
-                                 .num_operations = 10000,
+                                 .num_operations = 10000000,
                                  .key_size = 16,
                                  .value_size = 100,
-                                 .num_threads = 2,
+                                 .num_threads = 4,
                                  .batch_size = 1,
                                  .db_path = "./bench_db",
                                  .compare_mode = 0,
