@@ -31,6 +31,12 @@ typedef struct
     rocksdb_filterpolicy_t *filter_policy;
 } rocksdb_handle_t;
 
+typedef struct
+{
+    rocksdb_writebatch_t *batch;
+    rocksdb_handle_t *handle;
+} rocksdb_batch_context_t;
+
 static const storage_engine_ops_t rocksdb_ops;
 
 static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
@@ -67,9 +73,6 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     /* pin L0 index and filter blocks in cache for faster access */
     rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(handle->table_options,
                                                                             1);
-
-    /* XXH3 checksum would be faster than CRC32 and match TidesDB,
-     * but it's not exposed in RocksDB C API.. */
 
     rocksdb_options_set_block_based_table_factory(handle->options, handle->table_options);
 
@@ -177,6 +180,62 @@ static int rocksdb_del_impl(storage_engine_t *engine, const uint8_t *key, size_t
     return 0;
 }
 
+static int rocksdb_batch_begin_impl(storage_engine_t *engine, void **batch_ctx)
+{
+    rocksdb_handle_t *handle = (rocksdb_handle_t *)engine->handle;
+
+    rocksdb_batch_context_t *ctx = malloc(sizeof(rocksdb_batch_context_t));
+    if (!ctx) return -1;
+
+    ctx->batch = rocksdb_writebatch_create();
+    if (!ctx->batch)
+    {
+        free(ctx);
+        return -1;
+    }
+
+    ctx->handle = handle;
+    *batch_ctx = ctx;
+    return 0;
+}
+
+static int rocksdb_batch_put_impl(void *batch_ctx, storage_engine_t *engine, const uint8_t *key,
+                                  size_t key_size, const uint8_t *value, size_t value_size)
+{
+    (void)engine; /* unused - we have it in ctx */
+    rocksdb_batch_context_t *ctx = (rocksdb_batch_context_t *)batch_ctx;
+    rocksdb_writebatch_put(ctx->batch, (const char *)key, key_size, (const char *)value,
+                           value_size);
+    return 0;
+}
+
+static int rocksdb_batch_delete_impl(void *batch_ctx, storage_engine_t *engine, const uint8_t *key,
+                                     size_t key_size)
+{
+    (void)engine; /* unused - we have it in ctx */
+    rocksdb_batch_context_t *ctx = (rocksdb_batch_context_t *)batch_ctx;
+    rocksdb_writebatch_delete(ctx->batch, (const char *)key, key_size);
+    return 0;
+}
+
+static int rocksdb_batch_commit_impl(void *batch_ctx)
+{
+    rocksdb_batch_context_t *ctx = (rocksdb_batch_context_t *)batch_ctx;
+    char *err = NULL;
+
+    rocksdb_write(ctx->handle->db, ctx->handle->woptions, ctx->batch, &err);
+
+    rocksdb_writebatch_destroy(ctx->batch);
+    free(ctx);
+
+    if (err)
+    {
+        free(err);
+        return -1;
+    }
+    return 0;
+}
+
 static int rocksdb_iter_new_impl(storage_engine_t *engine, void **iter)
 {
     rocksdb_handle_t *handle = (rocksdb_handle_t *)engine->handle;
@@ -225,6 +284,10 @@ static const storage_engine_ops_t rocksdb_ops = {
     .put = rocksdb_put_impl,
     .get = rocksdb_get_impl,
     .del = rocksdb_del_impl,
+    .batch_begin = rocksdb_batch_begin_impl,
+    .batch_put = rocksdb_batch_put_impl,
+    .batch_delete = rocksdb_batch_delete_impl,
+    .batch_commit = rocksdb_batch_commit_impl,
     .iter_new = rocksdb_iter_new_impl,
     .iter_seek_to_first = rocksdb_iter_seek_to_first_impl,
     .iter_valid = rocksdb_iter_valid_impl,
