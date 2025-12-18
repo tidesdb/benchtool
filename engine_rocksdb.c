@@ -249,6 +249,12 @@ static int rocksdb_iter_seek_to_first_impl(void *iter)
     return 0;
 }
 
+static int rocksdb_iter_seek_impl(void *iter, const uint8_t *key, size_t key_size)
+{
+    rocksdb_iter_seek((rocksdb_iterator_t *)iter, (const char *)key, key_size);
+    return 0;
+}
+
 static int rocksdb_iter_valid_impl(void *iter)
 {
     return rocksdb_iter_valid((rocksdb_iterator_t *)iter) ? 1 : 0;
@@ -290,6 +296,7 @@ static const storage_engine_ops_t rocksdb_ops = {
     .batch_commit = rocksdb_batch_commit_impl,
     .iter_new = rocksdb_iter_new_impl,
     .iter_seek_to_first = rocksdb_iter_seek_to_first_impl,
+    .iter_seek = rocksdb_iter_seek_impl,
     .iter_valid = rocksdb_iter_valid_impl,
     .iter_next = rocksdb_iter_next_impl,
     .iter_key = rocksdb_iter_key_impl,

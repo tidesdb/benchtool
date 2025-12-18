@@ -46,8 +46,9 @@ static void print_usage(const char *prog)
         "reverse (default: random)\n");
     printf(
         "  -w, --workload <type>     Workload type: write, read, mixed, "
-        "delete (default: mixed)\n");
+        "delete, seek, range (default: mixed)\n");
     printf("  --sync                    Enable fsync for durable writes (slower)\n");
+    printf("  --range-size <num>        Number of keys per range query (default: 100)\n");
     printf("  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);
@@ -68,21 +69,29 @@ int main(int argc, char **argv)
                                  .report_file = NULL,
                                  .key_pattern = KEY_PATTERN_RANDOM,
                                  .workload_type = WORKLOAD_MIXED,
-                                 .sync_enabled = 0};
+                                 .sync_enabled = 0,
+                                 .range_size = 100};
 
-    static struct option long_options[] = {
-        {"engine", required_argument, 0, 'e'},   {"operations", required_argument, 0, 'o'},
-        {"key-size", required_argument, 0, 'k'}, {"value-size", required_argument, 0, 'v'},
-        {"threads", required_argument, 0, 't'},  {"batch-size", required_argument, 0, 'b'},
-        {"db-path", required_argument, 0, 'd'},  {"compare", no_argument, 0, 'c'},
-        {"report", required_argument, 0, 'r'},   {"pattern", required_argument, 0, 'p'},
-        {"workload", required_argument, 0, 'w'}, {"sync", no_argument, 0, 'S'},
-        {"help", no_argument, 0, 'h'},           {0, 0, 0, 0}};
+    static struct option long_options[] = {{"engine", required_argument, 0, 'e'},
+                                           {"operations", required_argument, 0, 'o'},
+                                           {"key-size", required_argument, 0, 'k'},
+                                           {"value-size", required_argument, 0, 'v'},
+                                           {"threads", required_argument, 0, 't'},
+                                           {"batch-size", required_argument, 0, 'b'},
+                                           {"db-path", required_argument, 0, 'd'},
+                                           {"compare", no_argument, 0, 'c'},
+                                           {"report", required_argument, 0, 'r'},
+                                           {"pattern", required_argument, 0, 'p'},
+                                           {"workload", required_argument, 0, 'w'},
+                                           {"sync", no_argument, 0, 'S'},
+                                           {"range-size", required_argument, 0, 'R'},
+                                           {"help", no_argument, 0, 'h'},
+                                           {0, 0, 0, 0}};
 
     int opt;
     int option_index = 0;
 
-    while ((opt = getopt_long(argc, argv, "e:o:k:v:t:b:d:cr:sp:w:h", long_options,
+    while ((opt = getopt_long(argc, argv, "e:o:k:v:t:b:d:cr:sp:w:R:h", long_options,
                               &option_index)) != -1)
     {
         switch (opt)
@@ -142,6 +151,10 @@ int main(int argc, char **argv)
                     config.workload_type = WORKLOAD_MIXED;
                 else if (strcmp(optarg, "delete") == 0)
                     config.workload_type = WORKLOAD_DELETE;
+                else if (strcmp(optarg, "seek") == 0)
+                    config.workload_type = WORKLOAD_SEEK;
+                else if (strcmp(optarg, "range") == 0)
+                    config.workload_type = WORKLOAD_RANGE;
                 else
                 {
                     fprintf(stderr, "Invalid workload type: %s\n", optarg);
@@ -150,6 +163,9 @@ int main(int argc, char **argv)
                 break;
             case 'S':
                 config.sync_enabled = 1;
+                break;
+            case 'R':
+                config.range_size = atoi(optarg);
                 break;
             case 'h':
                 print_usage(argv[0]);
@@ -205,6 +221,8 @@ int main(int argc, char **argv)
     printf("  Workload: %s\n", config.workload_type == WORKLOAD_WRITE    ? "Write-only"
                                : config.workload_type == WORKLOAD_READ   ? "Read-only"
                                : config.workload_type == WORKLOAD_DELETE ? "Delete-only"
+                               : config.workload_type == WORKLOAD_SEEK   ? "Seek"
+                               : config.workload_type == WORKLOAD_RANGE  ? "Range Query"
                                                                          : "Mixed");
     printf("  Sync Mode: %s\n", config.sync_enabled ? "Enabled (durable)" : "Disabled (fast)");
     printf("\n");
@@ -222,7 +240,6 @@ int main(int argc, char **argv)
     {
         printf("\n=== Cleaning database for baseline comparison ===\n");
 
-        /* Remove database directory to ensure clean baseline */
         char rm_cmd[2048];
         snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", config.db_path);
         int rm_result = system(rm_cmd);
