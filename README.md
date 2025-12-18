@@ -28,7 +28,8 @@ Options:
   -c, --compare             Compare against RocksDB baseline
   -r, --report <file>       Output report to file (default: stdout)
   -p, --pattern <type>      Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
-  -w, --workload <type>     Workload type: write, read, mixed, delete (default: mixed)
+  -w, --workload <type>     Workload type: write, read, mixed, delete, seek, range (default: mixed)
+  --range-size <num>        Number of keys to iterate in range queries (default: 100)
   --sync                    Enable fsync for durable writes (slower)
   -h, --help                Show help message
 ```
@@ -72,6 +73,12 @@ Options:
 
 # Mixed workload (default - writes then reads)
 ./benchtool -e tidesdb -w mixed -o 1000000
+
+# Seek workload (point seeks to specific keys)
+./benchtool -e tidesdb -w seek -o 1000000
+
+# Range query workload (seek + iterate N keys)
+./benchtool -e tidesdb -w range -o 500000 --range-size 100
 ```
 
 ### Key Patterns
@@ -95,6 +102,36 @@ Options:
 # Reverse sequential keys
 ./benchtool -e tidesdb -p reverse -o 500000
 ```
+
+### Seek and Range Query Benchmarks
+
+```bash
+# Random point seeks (tests block index effectiveness)
+./benchtool -e tidesdb -w seek -p random -o 1000000 -t 8
+
+# Sequential seeks
+./benchtool -e tidesdb -w seek -p seq -o 1000000 -t 8
+
+# Hot key seeks (Zipfian distribution)
+./benchtool -e tidesdb -w seek -p zipfian -o 1000000 -t 8
+
+# Range queries - scan 100 keys per operation
+./benchtool -e tidesdb -w range -p random -o 500000 -t 8 --range-size 100
+
+# Range queries - scan 1000 keys per operation
+./benchtool -e tidesdb -w range -p random -o 100000 -t 8 --range-size 1000
+
+# Sequential range scans (best case for iterators)
+./benchtool -e tidesdb -w range -p seq -o 500000 -t 8 --range-size 100
+
+# Compare seek performance: TidesDB vs RocksDB
+./benchtool -e tidesdb -c -w seek -p random -o 1000000 -t 8
+
+# Compare range query performance
+./benchtool -e tidesdb -c -w range -p random -o 500000 -t 8 --range-size 100
+```
+
+Seek benchmarks test the effectiveness of block indexes and bloom filters for point lookups. Range queries measure iterator performance and cache effectiveness for scanning multiple consecutive keys. The `--range-size` parameter controls how many keys are iterated per range operation, allowing you to test different scan lengths.
 
 ### Comparison Mode
 

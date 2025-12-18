@@ -231,6 +231,14 @@ static int tidesdb_iter_seek_to_first_impl(void *iter)
     return tidesdb_iter_seek_to_first(wrapper->iter);
 }
 
+static int tidesdb_iter_seek_impl(void *iter, const uint8_t *key, size_t key_size)
+{
+    if (!iter) return -1;
+    tidesdb_iter_wrapper_t *wrapper = (tidesdb_iter_wrapper_t *)iter;
+    if (!wrapper->iter) return -1;
+    return tidesdb_iter_seek(wrapper->iter, key, key_size);
+}
+
 static int tidesdb_iter_valid_impl(void *iter)
 {
     if (!iter) return 0;
@@ -298,6 +306,7 @@ static const storage_engine_ops_t tidesdb_ops = {
     .batch_commit = tidesdb_batch_commit_impl,
     .iter_new = tidesdb_iter_new_impl,
     .iter_seek_to_first = tidesdb_iter_seek_to_first_impl,
+    .iter_seek = tidesdb_iter_seek_impl,
     .iter_valid = tidesdb_iter_valid_impl,
     .iter_next = tidesdb_iter_next_impl,
     .iter_key = tidesdb_iter_key_impl,

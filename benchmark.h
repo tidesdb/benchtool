@@ -32,7 +32,9 @@ typedef enum
     WORKLOAD_WRITE,
     WORKLOAD_READ,
     WORKLOAD_MIXED,
-    WORKLOAD_DELETE
+    WORKLOAD_DELETE,
+    WORKLOAD_SEEK, /* seek to specific keys */
+    WORKLOAD_RANGE /* range queries (seek + iterate N keys) */
 } workload_type_t;
 
 typedef enum
@@ -59,6 +61,7 @@ typedef struct
     key_pattern_t key_pattern;
     workload_type_t workload_type;
     int sync_enabled;
+    int range_size; /* number of keys to iterate in range queries (default: 100) */
 } benchmark_config_t;
 
 typedef struct
@@ -107,6 +110,8 @@ typedef struct
     operation_stats_t get_stats;
     operation_stats_t delete_stats;
     operation_stats_t iteration_stats;
+    operation_stats_t seek_stats;  /* seek operation metrics */
+    operation_stats_t range_stats; /* range query metrics */
     size_t total_bytes_written;
     size_t total_bytes_read;
     size_t net_logical_data_size;
@@ -130,7 +135,7 @@ typedef struct
 
     int (*del)(storage_engine_t *engine, const uint8_t *key, size_t key_size);
 
-    /* Batched operations for better performance */
+    /* batched operations for better performance */
     int (*batch_begin)(storage_engine_t *engine, void **batch_ctx);
     int (*batch_put)(void *batch_ctx, storage_engine_t *engine, const uint8_t *key, size_t key_size,
                      const uint8_t *value, size_t value_size);
@@ -140,6 +145,7 @@ typedef struct
 
     int (*iter_new)(storage_engine_t *engine, void **iter);
     int (*iter_seek_to_first)(void *iter);
+    int (*iter_seek)(void *iter, const uint8_t *key, size_t key_size);
     int (*iter_valid)(void *iter);
     int (*iter_next)(void *iter);
     int (*iter_key)(void *iter, uint8_t **key, size_t *key_size);

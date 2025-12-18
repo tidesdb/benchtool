@@ -333,11 +333,11 @@ static void *benchmark_put_thread(void *arg)
     int start_index = ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
 
-    /* Use batched API if available, otherwise fall back to single operations */
+    /* we use use batched API if available, otherwise fall back to single operations */
     if (ctx->engine->ops->batch_begin && ctx->engine->ops->batch_put &&
         ctx->engine->ops->batch_commit && batch_size > 1)
     {
-        /* Batched path - group operations into transactions */
+        /* batched path -- group operations into transactions */
         for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
             void *batch_ctx = NULL;
@@ -361,14 +361,14 @@ static void *benchmark_put_thread(void *arg)
             ctx->engine->ops->batch_commit(batch_ctx);
             double batch_end_time = get_time_microseconds();
 
-            /* Record latency for the entire batch */
+            /* we record record latency for the entire batch */
             double batch_latency = batch_end_time - batch_start;
             ctx->latencies[ctx->latency_count++] = batch_latency;
         }
     }
     else
     {
-        /* Single operation path (legacy) */
+        /* single operation path (legacy) */
         for (int i = 0; i < ctx->ops_per_thread; i++)
         {
             generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
@@ -424,11 +424,11 @@ static void *benchmark_delete_thread(void *arg)
     int start_index = ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
 
-    /* Use batched API if available, otherwise fall back to single operations */
+    /* we use batched API if available, otherwise fall back to single operations */
     if (ctx->engine->ops->batch_begin && ctx->engine->ops->batch_delete &&
         ctx->engine->ops->batch_commit && batch_size > 1)
     {
-        /* Batched path - group operations into transactions */
+        /* batched path -- group operations into transactions */
         for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
             void *batch_ctx = NULL;
@@ -450,7 +450,7 @@ static void *benchmark_delete_thread(void *arg)
             ctx->engine->ops->batch_commit(batch_ctx);
             double batch_end_time = get_time_microseconds();
 
-            /* Record latency for the entire batch */
+            /* record latency for the entire batch */
             double batch_latency = batch_end_time - batch_start;
             ctx->latencies[ctx->latency_count++] = batch_latency;
 
@@ -464,7 +464,7 @@ static void *benchmark_delete_thread(void *arg)
     }
     else
     {
-        /* Single operation path (legacy) */
+        /* single operation path (legacy) */
         for (int i = 0; i < ctx->ops_per_thread; i++)
         {
             generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
@@ -486,6 +486,106 @@ static void *benchmark_delete_thread(void *arg)
         }
     }
 
+    free(key);
+    return NULL;
+}
+
+static void *benchmark_seek_thread(void *arg)
+{
+    thread_context_t *ctx = (thread_context_t *)arg;
+    uint8_t *key = malloc(ctx->config->key_size);
+
+    int start_index = ctx->thread_id * ctx->ops_per_thread;
+
+    /* create iterator once per thread, reuse for all seeks */
+    void *iter = NULL;
+    if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
+    {
+        free(key);
+        return NULL;
+    }
+
+    for (int i = 0; i < ctx->ops_per_thread; i++)
+    {
+        generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
+                     ctx->config->num_operations);
+
+        double start = get_time_microseconds();
+
+        ctx->engine->ops->iter_seek(iter, key, ctx->config->key_size);
+
+        /* check if seek was successful */
+        if (ctx->engine->ops->iter_valid(iter))
+        {
+            /* read the key to simulate real usage */
+            /* note: iterator owns this memory, don't free it */
+            uint8_t *found_key = NULL;
+            size_t found_key_size = 0;
+            ctx->engine->ops->iter_key(iter, &found_key, &found_key_size);
+        }
+
+        double end = get_time_microseconds();
+        ctx->latencies[ctx->latency_count++] = end - start;
+    }
+
+    /* cleanup iterator once at the end */
+    ctx->engine->ops->iter_free(iter);
+    free(key);
+    return NULL;
+}
+
+static void *benchmark_range_thread(void *arg)
+{
+    thread_context_t *ctx = (thread_context_t *)arg;
+    uint8_t *key = malloc(ctx->config->key_size);
+
+    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int range_size = ctx->config->range_size;
+
+    /* create iterator once per thread, reuse for all range queries */
+    void *iter = NULL;
+    if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
+    {
+        fprintf(stderr, "[T%d iter_new failed] ", ctx->thread_id);
+        fflush(stderr);
+        free(key);
+        return NULL;
+    }
+
+    for (int i = 0; i < ctx->ops_per_thread; i++)
+    {
+        generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
+                     ctx->config->num_operations);
+
+        double start = get_time_microseconds();
+
+        /* seek to starting key */
+        ctx->engine->ops->iter_seek(iter, key, ctx->config->key_size);
+
+        /* iterate through range_size keys */
+        int count = 0;
+        while (ctx->engine->ops->iter_valid(iter) && count < range_size)
+        {
+            /* read key and value to simulate real range query */
+            /* note: iterator owns this memory, don't free it */
+            uint8_t *found_key = NULL;
+            uint8_t *found_value = NULL;
+            size_t found_key_size = 0;
+            size_t found_value_size = 0;
+
+            ctx->engine->ops->iter_key(iter, &found_key, &found_key_size);
+            ctx->engine->ops->iter_value(iter, &found_value, &found_value_size);
+
+            ctx->engine->ops->iter_next(iter);
+            count++;
+        }
+
+        double end = get_time_microseconds();
+        ctx->latencies[ctx->latency_count++] = end - start;
+    }
+
+    /* cleanup iterator once at the end */
+    ctx->engine->ops->iter_free(iter);
     free(key);
     return NULL;
 }
@@ -762,6 +862,173 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("%.2f ops/sec\n", (*results)->delete_stats.ops_per_second);
     }
 
+    if (config->workload_type == WORKLOAD_SEEK)
+    {
+        printf("  SEEK: ");
+        fflush(stdout);
+
+        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+
+        int ops_per_thread = config->num_operations / config->num_threads;
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].latencies = malloc(ops_per_thread * sizeof(double));
+        }
+
+        if (!baseline_captured)
+        {
+            get_memory_usage(&baseline_rss, &baseline_vms);
+            get_io_stats(&baseline_io_read, &baseline_io_write);
+            get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+            baseline_captured = 1;
+        }
+
+        double start_time = get_time_microseconds();
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].config = config;
+            contexts[i].engine = engine;
+            contexts[i].thread_id = i;
+            contexts[i].ops_per_thread = ops_per_thread;
+            contexts[i].latency_count = 0;
+            int rc = pthread_create(&threads[i], NULL, benchmark_seek_thread, &contexts[i]);
+            if (rc != 0)
+            {
+                fprintf(stderr, "Failed to create thread %d\n", i);
+            }
+        }
+
+        fprintf(stderr, "[%d threads started] ", config->num_threads);
+        fflush(stderr);
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            pthread_join(threads[i], NULL);
+            fprintf(stderr, "[T%d done] ", i);
+            fflush(stderr);
+        }
+
+        double end_time = get_time_microseconds();
+        fprintf(stderr, "\n");
+
+        (*results)->seek_stats.duration_seconds = (end_time - start_time) / 1000000.0;
+        (*results)->seek_stats.ops_per_second =
+            config->num_operations / (*results)->seek_stats.duration_seconds;
+
+        int total_latencies = 0;
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            total_latencies += contexts[i].latency_count;
+        }
+
+        double *all_latencies = malloc(total_latencies * sizeof(double));
+        int offset = 0;
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            memcpy(all_latencies + offset, contexts[i].latencies,
+                   contexts[i].latency_count * sizeof(double));
+            offset += contexts[i].latency_count;
+            free(contexts[i].latencies);
+        }
+
+        calculate_stats(all_latencies, total_latencies, &(*results)->seek_stats);
+        free(all_latencies);
+        free(threads);
+        free(contexts);
+
+        (*results)->total_bytes_read +=
+            (size_t)config->num_operations * (config->key_size + config->value_size);
+
+        printf("%.2f ops/sec\n", (*results)->seek_stats.ops_per_second);
+    }
+
+    if (config->workload_type == WORKLOAD_RANGE)
+    {
+        printf("  RANGE: ");
+        fflush(stdout);
+
+        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+
+        int ops_per_thread = config->num_operations / config->num_threads;
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].latencies = malloc(ops_per_thread * sizeof(double));
+        }
+
+        if (!baseline_captured)
+        {
+            get_memory_usage(&baseline_rss, &baseline_vms);
+            get_io_stats(&baseline_io_read, &baseline_io_write);
+            get_cpu_stats(&baseline_cpu_user, &baseline_cpu_system);
+            baseline_captured = 1;
+        }
+
+        double start_time = get_time_microseconds();
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            contexts[i].config = config;
+            contexts[i].engine = engine;
+            contexts[i].thread_id = i;
+            contexts[i].ops_per_thread = ops_per_thread;
+            contexts[i].latency_count = 0;
+            int rc = pthread_create(&threads[i], NULL, benchmark_range_thread, &contexts[i]);
+            if (rc != 0)
+            {
+                fprintf(stderr, "Failed to create thread %d\n", i);
+            }
+        }
+
+        fprintf(stderr, "[%d threads started] ", config->num_threads);
+        fflush(stderr);
+
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            pthread_join(threads[i], NULL);
+            fprintf(stderr, "[T%d done] ", i);
+            fflush(stderr);
+        }
+
+        double end_time = get_time_microseconds();
+        fprintf(stderr, "\n");
+
+        (*results)->range_stats.duration_seconds = (end_time - start_time) / 1000000.0;
+        (*results)->range_stats.ops_per_second =
+            config->num_operations / (*results)->range_stats.duration_seconds;
+
+        int total_latencies = 0;
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            total_latencies += contexts[i].latency_count;
+        }
+
+        double *all_latencies = malloc(total_latencies * sizeof(double));
+        int offset = 0;
+        for (int i = 0; i < config->num_threads; i++)
+        {
+            memcpy(all_latencies + offset, contexts[i].latencies,
+                   contexts[i].latency_count * sizeof(double));
+            offset += contexts[i].latency_count;
+            free(contexts[i].latencies);
+        }
+
+        calculate_stats(all_latencies, total_latencies, &(*results)->range_stats);
+        free(all_latencies);
+        free(threads);
+        free(contexts);
+
+        /* range queries read range_size keys per operation */
+        (*results)->total_bytes_read += (size_t)config->num_operations * config->range_size *
+                                        (config->key_size + config->value_size);
+
+        printf("%.2f ops/sec\n", (*results)->range_stats.ops_per_second);
+    }
+
     printf("  ITER: ");
     fflush(stdout);
 
@@ -900,6 +1167,33 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->delete_stats.p99_latency_us);
         fprintf(fp, "  Latency (min): %.2f μs\n", results->delete_stats.min_latency_us);
         fprintf(fp, "  Latency (max): %.2f μs\n\n", results->delete_stats.max_latency_us);
+    }
+
+    if (results->seek_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "SEEK Operations:\n");
+        fprintf(fp, "  Throughput: %.2f ops/sec\n", results->seek_stats.ops_per_second);
+        fprintf(fp, "  Duration: %.3f seconds\n", results->seek_stats.duration_seconds);
+        fprintf(fp, "  Latency (avg): %.2f μs\n", results->seek_stats.avg_latency_us);
+        fprintf(fp, "  Latency (p50): %.2f μs\n", results->seek_stats.p50_latency_us);
+        fprintf(fp, "  Latency (p95): %.2f μs\n", results->seek_stats.p95_latency_us);
+        fprintf(fp, "  Latency (p99): %.2f μs\n", results->seek_stats.p99_latency_us);
+        fprintf(fp, "  Latency (min): %.2f μs\n", results->seek_stats.min_latency_us);
+        fprintf(fp, "  Latency (max): %.2f μs\n\n", results->seek_stats.max_latency_us);
+    }
+
+    if (results->range_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "RANGE Query Operations:\n");
+        fprintf(fp, "  Throughput: %.2f ops/sec\n", results->range_stats.ops_per_second);
+        fprintf(fp, "  Duration: %.3f seconds\n", results->range_stats.duration_seconds);
+        fprintf(fp, "  Latency (avg): %.2f μs\n", results->range_stats.avg_latency_us);
+        fprintf(fp, "  Latency (p50): %.2f μs\n", results->range_stats.p50_latency_us);
+        fprintf(fp, "  Latency (p95): %.2f μs\n", results->range_stats.p95_latency_us);
+        fprintf(fp, "  Latency (p99): %.2f μs\n", results->range_stats.p99_latency_us);
+        fprintf(fp, "  Latency (min): %.2f μs\n", results->range_stats.min_latency_us);
+        fprintf(fp, "  Latency (max): %.2f μs\n", results->range_stats.max_latency_us);
+        fprintf(fp, "  Keys per range: %d\n\n", results->config.range_size);
     }
 
     if (results->iteration_stats.ops_per_second > 0)

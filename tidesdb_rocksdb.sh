@@ -3,7 +3,7 @@
 set -e  # Exit on error
 
 BENCH="./build/benchtool"
-DB_PATH="/db-bench"
+DB_PATH="/media/agpmastersystem/c794105c-0cd9-4be9-8369-ee6d6e707d68/home/db-bench"
 RESULTS="benchmark_results.txt"
 
 # Set to "true" to enable fsync-fdatasync (durability), "false" for maximum performance
@@ -140,6 +140,76 @@ run_delete_comparison() {
     echo "" | tee -a "$RESULTS"
 }
 
+# Run seek benchmark (requires pre-populating data)
+run_seek_comparison() {
+    local test_name="$1"
+    shift
+    local seek_args="$@"
+    local write_args="${seek_args/-w seek/-w write}"
+
+    # Add batching to population phase for performance
+    local populate_args="$write_args -b $DEFAULT_BATCH_SIZE"
+
+    echo "" | tee -a "$RESULTS"
+    echo "========================================" | tee -a "$RESULTS"
+    echo "TEST: $test_name" | tee -a "$RESULTS"
+    echo "========================================" | tee -a "$RESULTS"
+
+    # Prepare data with TidesDB
+    cleanup_db || exit 1
+    echo "Populating TidesDB for seek test..." | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    echo "Running TidesDB seek test..." | tee -a "$RESULTS"
+    $BENCH -e tidesdb $seek_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    # Prepare data with RocksDB
+    cleanup_db || exit 1
+    echo "Populating RocksDB for seek test..." | tee -a "$RESULTS"
+    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    echo "Running RocksDB seek test..." | tee -a "$RESULTS"
+    $BENCH -e rocksdb $seek_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    cleanup_db || exit 1
+    echo "" | tee -a "$RESULTS"
+}
+
+# Run range benchmark (requires pre-populating data)
+run_range_comparison() {
+    local test_name="$1"
+    shift
+    local range_args="$@"
+    local write_args="${range_args/-w range/-w write}"
+
+    # Add batching to population phase for performance
+    local populate_args="$write_args -b $DEFAULT_BATCH_SIZE"
+
+    echo "" | tee -a "$RESULTS"
+    echo "========================================" | tee -a "$RESULTS"
+    echo "TEST: $test_name" | tee -a "$RESULTS"
+    echo "========================================" | tee -a "$RESULTS"
+
+    # Prepare data with TidesDB
+    cleanup_db || exit 1
+    echo "Populating TidesDB for range test..." | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    echo "Running TidesDB range test..." | tee -a "$RESULTS"
+    $BENCH -e tidesdb $range_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    # Prepare data with RocksDB
+    cleanup_db || exit 1
+    echo "Populating RocksDB for range test..." | tee -a "$RESULTS"
+    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    echo "Running RocksDB range test..." | tee -a "$RESULTS"
+    $BENCH -e rocksdb $range_args $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+
+    cleanup_db || exit 1
+    echo "" | tee -a "$RESULTS"
+}
+
 # ============================================
 # Benchmark Suite
 # ============================================
@@ -206,6 +276,26 @@ run_delete_comparison "Delete Batch=100 (5M ops)" \
 
 run_delete_comparison "Delete Batch=1000 (5M ops)" \
     -w delete -p random -o 5000000 -t 8 -b 1000
+
+echo "### 11. Seek Performance (Block Index Effectiveness) ###" | tee -a "$RESULTS"
+run_seek_comparison "Random Seek (5M ops, 8 threads)" \
+    -w seek -p random -o 5000000 -t 8
+
+run_seek_comparison "Sequential Seek (5M ops, 8 threads)" \
+    -w seek -p seq -o 5000000 -t 8
+
+run_seek_comparison "Zipfian Seek (5M ops, 8 threads)" \
+    -w seek -p zipfian -o 5000000 -t 8
+
+echo "### 12. Range Query Performance ###" | tee -a "$RESULTS"
+run_range_comparison "Range Scan 100 keys (1M ops, 8 threads)" \
+    -w range -p random -o 1000000 -t 8 --range-size 100
+
+run_range_comparison "Range Scan 1000 keys (500K ops, 8 threads)" \
+    -w range -p random -o 500000 -t 8 --range-size 1000
+
+run_range_comparison "Sequential Range Scan 100 keys (1M ops, 8 threads)" \
+    -w range -p seq -o 1000000 -t 8 --range-size 100
 
 # Final cleanup
 cleanup_db
