@@ -8,9 +8,10 @@ A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB 
 
 ## Build
 ```bash
-mkdir build && cd build
+rm -rf build && mkdir build && cd build
 cmake ..
 make
+cd ..
 ```
 
 ## Command Line Options
@@ -33,6 +34,13 @@ Options:
   --sync                    Enable fsync for durable writes (slower)
   -h, --help                Show help message
 ```
+
+## Runners
+The benchtool has default runners such as
+
+- `large_value_benchmark.sh` - runs 8kb value size benchmark comparisons against RocksDB+
+- `large_value_benchmark_1gb.sh` - runs 1gb value size benchmark comparisons against RocksDB+
+- `tidesdb_rocksdb.sh` - is the main benchtool suite runner
 
 ## Usage Examples
 
