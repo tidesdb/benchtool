@@ -27,3 +27,5 @@ vcpkg_installed
 run.sh
 test_tidesdb
 benchmark_results2.txt
+benchmark_results*
+large_value_benchmark_results*

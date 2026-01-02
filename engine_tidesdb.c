@@ -54,7 +54,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
     config.num_flush_threads = 2;
     config.num_compaction_threads = 2;
     config.log_level = TDB_LOG_NONE;
-    config.block_cache_size = 64 * 1024 * 1024; /* 1gb */
+    config.block_cache_size = 64 * 1024 * 1024;
     if (tidesdb_open(&config, &handle->db) != 0)
     {
         free(handle);
