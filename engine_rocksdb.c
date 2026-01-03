@@ -96,7 +96,7 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path, const 
     int use_blobdb = config->enable_blobdb >= 0 ? config->enable_blobdb : 0;
     if (use_blobdb) {
         rocksdb_options_set_enable_blob_files(handle->options, 1);
-        rocksdb_options_set_min_blob_size(handle->options, 4096); /* values >= 4KB go to blob files */
+        rocksdb_options_set_min_blob_size(handle->options, config->klog_value_threshold); /* values >= 4KB go to blob files */
         rocksdb_options_set_blob_file_size(handle->options, 256 * 1024 * 1024); /* 256MB blob files */
         rocksdb_options_set_blob_compression_type(handle->options, rocksdb_lz4_compression);
         rocksdb_options_set_enable_blob_gc(handle->options, 1);

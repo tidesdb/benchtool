@@ -45,7 +45,7 @@ Options:
   --min_levels <n>               TidesDB minimum tree levels (default 5)
   --index_sample_ratio <n>       TidesDB index sample ratio (default 1)
   --block_index_prefix_len <n>   TidesDB block index prefix length (default 16)
-  --klog_value_threshold <bytes> TidesDB KLog value threshold (default 512)
+  --klog_value_threshold <bytes> TidesDB/ RocksDB (BlobDB) KLog value threshold (default 512)
   -h, --help                     Show help message
 ```
 
