@@ -62,13 +62,13 @@ typedef struct
     workload_type_t workload_type;
     int sync_enabled;
     int range_size; /* number of keys to iterate in range queries (default: 100) */
-    
+
     /* engine configuration options */
-    size_t memtable_size;      /* memtable/write buffer size in bytes (0 = use default) */
-    size_t block_cache_size;   /* block cache size in bytes (0 = use default) */
-    int enable_blobdb;         /* enable RocksDB BlobDB (1 = enabled, 0 = disabled, -1 = default) */
-    int enable_bloom_filter;   /* enable bloom filters (1 = enabled, 0 = disabled, -1 = default) */
-    int enable_block_indexes;  /* enable block indexes (1 = enabled, 0 = disabled, -1 = default) */
+    size_t memtable_size;     /* memtable/write buffer size in bytes (0 = use default) */
+    size_t block_cache_size;  /* block cache size in bytes (0 = use default) */
+    int enable_blobdb;        /* enable RocksDB BlobDB (1 = enabled, 0 = disabled, -1 = default) */
+    int enable_bloom_filter;  /* enable bloom filters (1 = enabled, 0 = disabled, -1 = default) */
+    int enable_block_indexes; /* enable block indexes (1 = enabled, 0 = disabled, -1 = default) */
 
     double bloom_fpr;
     int l0_queue_stall_threshold;

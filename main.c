@@ -54,14 +54,17 @@ static void print_usage(const char *prog)
     printf("  --rocksdb-blobdb          Enable RocksDB BlobDB for large values\n");
     printf("  --no-rocksdb-blobdb       Disable RocksDB BlobDB\n");
     printf("  --bloom-fp <fp>           Bloom filter false positive rate (0.01 = default)\n");
-    printf("  --l0_queue_stall_threshold <num> L0 queue stall threshold (10 = default) (TidesDB) \n");
+    printf(
+        "  --l0_queue_stall_threshold <num> L0 queue stall threshold (10 = default) (TidesDB) \n");
     printf("  --l1_file_count_trigger <num> L1 file count trigger (4 = default) (TidesDB) \n");
     printf("  --bloom-filters           Enable bloom filters\n");
     printf("  --klog_value_threshold <bytes> Klog value threshold (512 bytes = default)\n");
     printf("  --dividing_level_offset <num> Dividing level offset (TidesDB) (2 = default)\n");
     printf("  --min_levels <num> Minimum levels (TidesDB) (5 = default)\n");
     printf("  --index_sample_ratio <num> Sample ratio for block indexes (TidesDB) (1 = default)\n");
-    printf("  --block_index_prefix_len <num> Sample prefix length for min-max block indexes (TidesDB) (16 = default)\n");
+    printf(
+        "  --block_index_prefix_len <num> Sample prefix length for min-max block indexes (TidesDB) "
+        "(16 = default)\n");
     printf("  --no-bloom-filters        Disable bloom filters\n");
     printf("  --block-indexes           Enable block indexes\n");
     printf("  --no-block-indexes        Disable block indexes\n");
@@ -113,43 +116,38 @@ int main(int argc, char **argv)
         OPT_KLOG_VALUE_THRESHOLD
     };
 
-    static struct option long_options[] = {{"engine", required_argument, 0, 'e'},
-                                           {"operations", required_argument, 0, 'o'},
-                                           {"key-size", required_argument, 0, 'k'},
-                                           {"value-size", required_argument, 0, 'v'},
-                                           {"threads", required_argument, 0, 't'},
-                                           {"batch-size", required_argument, 0, 'b'},
-                                           {"db-path", required_argument, 0, 'd'},
-                                           {"compare", no_argument, 0, 'c'},
-                                           {"report", required_argument, 0, 'r'},
-                                           {"pattern", required_argument, 0, 'p'},
-                                           {"workload", required_argument, 0, 'w'},
-                                           {"sync", no_argument, 0, 'S'},
-                                           {"range-size", required_argument, 0, 'R'},
-                                           {"memtable-size", required_argument, 0, 'M'},
-                                           {"block-cache-size", required_argument, 0, 'C'},
-                                           {"rocksdb-blobdb", no_argument, 0, 'B'},
-                                           {"no-rocksdb-blobdb", no_argument, 0, 'N'},
-                                           {"bloom-filters", no_argument, 0, 'F'},
-                                           {"no-bloom-filters", no_argument, 0, 'G'},
-                                           {"block-indexes", no_argument, 0, 'I'},
-                                           {"no-block-indexes", no_argument, 0, 'J'},
-                                           {"bloom-fpr", required_argument, 0, OPT_BLOOM_FPR},
-                                           {"l0_queue_stall_threshold", required_argument, 0,
-                                            OPT_L0_QUEUE_STALL_THRESHOLD},
-                                           {"l1_file_count_trigger", required_argument, 0,
-                                            OPT_L1_FILE_COUNT_TRIGGER},
-                                           {"dividing_level_offset", required_argument, 0,
-                                            OPT_DIVIDING_LEVEL_OFFSET},
-                                           {"min_levels", required_argument, 0, OPT_MIN_LEVELS},
-                                           {"index_sample_ratio", required_argument, 0,
-                                            OPT_INDEX_SAMPLE_RATIO},
-                                           {"block_index_prefix_len", required_argument, 0,
-                                            OPT_BLOCK_INDEX_PREFIX_LEN},
-                                           {"klog_value_threshold", required_argument, 0,
-                                            OPT_KLOG_VALUE_THRESHOLD},
-                                           {"help", no_argument, 0, 'h'},
-                                           {0, 0, 0, 0}};
+    static struct option long_options[] = {
+        {"engine", required_argument, 0, 'e'},
+        {"operations", required_argument, 0, 'o'},
+        {"key-size", required_argument, 0, 'k'},
+        {"value-size", required_argument, 0, 'v'},
+        {"threads", required_argument, 0, 't'},
+        {"batch-size", required_argument, 0, 'b'},
+        {"db-path", required_argument, 0, 'd'},
+        {"compare", no_argument, 0, 'c'},
+        {"report", required_argument, 0, 'r'},
+        {"pattern", required_argument, 0, 'p'},
+        {"workload", required_argument, 0, 'w'},
+        {"sync", no_argument, 0, 'S'},
+        {"range-size", required_argument, 0, 'R'},
+        {"memtable-size", required_argument, 0, 'M'},
+        {"block-cache-size", required_argument, 0, 'C'},
+        {"rocksdb-blobdb", no_argument, 0, 'B'},
+        {"no-rocksdb-blobdb", no_argument, 0, 'N'},
+        {"bloom-filters", no_argument, 0, 'F'},
+        {"no-bloom-filters", no_argument, 0, 'G'},
+        {"block-indexes", no_argument, 0, 'I'},
+        {"no-block-indexes", no_argument, 0, 'J'},
+        {"bloom-fpr", required_argument, 0, OPT_BLOOM_FPR},
+        {"l0_queue_stall_threshold", required_argument, 0, OPT_L0_QUEUE_STALL_THRESHOLD},
+        {"l1_file_count_trigger", required_argument, 0, OPT_L1_FILE_COUNT_TRIGGER},
+        {"dividing_level_offset", required_argument, 0, OPT_DIVIDING_LEVEL_OFFSET},
+        {"min_levels", required_argument, 0, OPT_MIN_LEVELS},
+        {"index_sample_ratio", required_argument, 0, OPT_INDEX_SAMPLE_RATIO},
+        {"block_index_prefix_len", required_argument, 0, OPT_BLOCK_INDEX_PREFIX_LEN},
+        {"klog_value_threshold", required_argument, 0, OPT_KLOG_VALUE_THRESHOLD},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}};
 
     int opt;
     int option_index = 0;
