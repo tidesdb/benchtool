@@ -607,7 +607,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
     }
 
     storage_engine_t *engine = NULL;
-    if (ops->open(&engine, config->db_path) != 0)
+    if (ops->open(&engine, config->db_path, config) != 0)
     {
         fprintf(stderr, "Failed to open engine\n");
         free(*results);

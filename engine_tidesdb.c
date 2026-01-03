@@ -37,7 +37,7 @@ typedef struct
 
 static const storage_engine_ops_t tidesdb_ops;
 
-static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
+static int tidesdb_open_impl(storage_engine_t **engine, const char *path, const benchmark_config_t *config)
 {
     *engine = malloc(sizeof(storage_engine_t));
     if (!*engine) return -1;
@@ -49,13 +49,17 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
         return -1;
     }
 
-    tidesdb_config_t config = tidesdb_default_config();
-    config.db_path = (char *)path; /* tidesdb_open makes its own copy */
-    config.num_flush_threads = 2;
-    config.num_compaction_threads = 2;
-    config.log_level = TDB_LOG_NONE;
-    config.block_cache_size = 64 * 1024 * 1024;
-    if (tidesdb_open(&config, &handle->db) != 0)
+    tidesdb_config_t tdb_config = tidesdb_default_config();
+    tdb_config.db_path = (char *)path; /* tidesdb_open makes its own copy */
+    tdb_config.num_flush_threads = 2;
+    tdb_config.num_compaction_threads = 2;
+    tdb_config.log_level = TDB_LOG_NONE;
+    
+    tdb_config.block_cache_size = config->block_cache_size > 0 
+        ? config->block_cache_size 
+        : 64 * (1024*1024);
+    
+    if (tidesdb_open(&tdb_config, &handle->db) != 0)
     {
         free(handle);
         free(*engine);
@@ -64,12 +68,32 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path)
 
     handle->cf_config = tidesdb_default_column_family_config();
     handle->cf_config.compression_algorithm = LZ4_COMPRESSION;
-    handle->cf_config.enable_bloom_filter = 1;
-    handle->cf_config.enable_block_indexes = 1;
+    handle->cf_config.bloom_fpr = config->bloom_fpr;
+    handle->cf_config.l0_queue_stall_threshold = config->l0_queue_stall_threshold;
+    handle->cf_config.l1_file_count_trigger = config->l1_file_count_trigger;
+    handle->cf_config.dividing_level_offset = config->dividing_level_offset;
+    handle->cf_config.min_levels = config->min_levels;
+    handle->cf_config.index_sample_ratio = config->index_sample_ratio;
+    handle->cf_config.block_index_prefix_len = config->block_index_prefix_len;
+    handle->cf_config.klog_value_threshold = config->klog_value_threshold;
+    
+    /* use configurable bloom filter setting or default to enabled */
+    handle->cf_config.enable_bloom_filter = config->enable_bloom_filter >= 0 
+        ? config->enable_bloom_filter 
+        : 1;
+    
+    /* use configurable block indexes setting or default to enabled */
+    handle->cf_config.enable_block_indexes = config->enable_block_indexes >= 0 
+        ? config->enable_block_indexes 
+        : 1;
+    
     handle->cf_config.index_sample_ratio = 1;
 
     handle->cf_config.sync_mode = TDB_SYNC_NONE; /* default */
-    handle->cf_config.write_buffer_size = 64 * 1024 * 1024;
+    
+    handle->cf_config.write_buffer_size = config->memtable_size > 0 
+        ? config->memtable_size 
+        : (size_t)64 * (1024*1024);
     if (tidesdb_create_column_family(handle->db, "default", &handle->cf_config) != 0)
     {
         /* column family might already exist, which is fine */

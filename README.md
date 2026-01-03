@@ -19,20 +19,34 @@ cd ..
 Usage: benchtool [OPTIONS]
 
 Options:
-  -e, --engine <name>       Storage engine to benchmark (tidesdb, rocksdb)
-  -o, --operations <num>    Number of operations (default: 100000)
-  -k, --key-size <bytes>    Key size in bytes (default: 16)
-  -v, --value-size <bytes>  Value size in bytes (default: 100)
-  -t, --threads <num>       Number of threads (default: 1)
-  -b, --batch-size <num>    Batch size for operations (default: 1)
-  -d, --db-path <path>      Database path (default: ./bench_db)
-  -c, --compare             Compare against RocksDB baseline
-  -r, --report <file>       Output report to file (default: stdout)
-  -p, --pattern <type>      Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
-  -w, --workload <type>     Workload type: write, read, mixed, delete, seek, range (default: mixed)
-  --range-size <num>        Number of keys to iterate in range queries (default: 100)
-  --sync                    Enable fsync for durable writes (slower)
-  -h, --help                Show help message
+  -e, --engine <name>            Storage engine to benchmark (tidesdb, rocksdb)
+  -o, --operations <num>         Number of operations (default: 100000)
+  -k, --key-size <bytes>         Key size in bytes (default: 16)
+  -v, --value-size <bytes>       Value size in bytes (default: 100)
+  -t, --threads <num>            Number of threads (default: 1)
+  -b, --batch-size <num>         Batch size for operations (default: 1)
+  -d, --db-path <path>           Database path (default: ./bench_db)
+  -s, --sequential               Shortcut for sequential key pattern
+  -c, --compare                  Compare against RocksDB baseline
+  -r, --report <file>            Output report to file (default: stdout)
+  -p, --pattern <type>           Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
+  -w, --workload <type>          Workload type: write, read, mixed, delete, seek, range (default: mixed)
+  --range-size <num>             Number of keys to iterate in range queries (default: 100)
+  --sync                         Enable fsync for durable writes (slower)
+  --memtable-size <bytes>        Engine write-buffer / memtable size (0 = engine default)
+  --block-cache-size <bytes>     Block cache size (0 = engine default)
+  --rocksdb-blobdb / --no-rocksdb-blobdb  Force-enable/disable RocksDB BlobDB
+  --bloom-filters / --no-bloom-filters    Force-enable/disable bloom filters
+  --block-indexes / --no-block-indexes    Force-enable/disable block indexes
+  --bloom-fp <ratio>             Bloom filter false-positive rate (default 0.01)
+  --l0_queue_stall_threshold <n> TidesDB L0 stall threshold (default 10)
+  --l1_file_count_trigger <n>    TidesDB L1 file trigger count (default 4)
+  --dividing_level_offset <n>    TidesDB dividing level offset (default 2)
+  --min_levels <n>               TidesDB minimum tree levels (default 5)
+  --index_sample_ratio <n>       TidesDB index sample ratio (default 1)
+  --block_index_prefix_len <n>   TidesDB block index prefix length (default 16)
+  --klog_value_threshold <bytes> TidesDB/ RocksDB (BlobDB) KLog value threshold (default 512)
+  -h, --help                     Show help message
 ```
 
 ## Runners
