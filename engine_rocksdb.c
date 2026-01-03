@@ -39,7 +39,7 @@ typedef struct
 
 static const storage_engine_ops_t rocksdb_ops;
 
-static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
+static int rocksdb_open_impl(storage_engine_t **engine, const char *path, const benchmark_config_t *config)
 {
     *engine = malloc(sizeof(storage_engine_t));
     if (!*engine) return -1;
@@ -57,18 +57,27 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
     /* match TidesDB compression settings */
     rocksdb_options_set_compression(handle->options, rocksdb_lz4_compression);
 
-    /* use HyperClockCache (recommended over LRU) - 64 MB to match TidesDB */
-    handle->cache = rocksdb_cache_create_hyper_clock(64 * 1024 * 1024, 0);
+    /* use configurable block cache size or default to 64 MB */
+    size_t cache_size = config->block_cache_size > 0 ? config->block_cache_size : 64 * (1024*1024);
+    handle->cache = rocksdb_cache_create_hyper_clock(cache_size, 0);
     handle->table_options = rocksdb_block_based_options_create();
     rocksdb_block_based_options_set_block_cache(handle->table_options, handle->cache);
 
-    /* match TidesDB bloom filter settings */
-    handle->filter_policy = rocksdb_filterpolicy_create_bloom(10);
-    rocksdb_block_based_options_set_filter_policy(handle->table_options, handle->filter_policy);
+    /* use configurable bloom filter setting or default to enabled */
+    int use_bloom = config->enable_bloom_filter >= 0 ? config->enable_bloom_filter : 1;
+    if (use_bloom) {
+        handle->filter_policy = rocksdb_filterpolicy_create_bloom(10);
+        rocksdb_block_based_options_set_filter_policy(handle->table_options, handle->filter_policy);
+    } else {
+        handle->filter_policy = NULL;
+    }
 
-    /* use binary search index (not two-level) for better performance */
-    rocksdb_block_based_options_set_index_type(handle->table_options,
-                                               rocksdb_block_based_table_index_type_binary_search);
+    /* use configurable block indexes setting or default to binary search */
+    int use_indexes = config->enable_block_indexes >= 0 ? config->enable_block_indexes : 1;
+    if (use_indexes) {
+        rocksdb_block_based_options_set_index_type(handle->table_options,
+                                                   rocksdb_block_based_table_index_type_binary_search);
+    }
 
     /* pin L0 index and filter blocks in cache for faster access */
     rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(handle->table_options,
@@ -76,11 +85,23 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path)
 
     rocksdb_options_set_block_based_table_factory(handle->options, handle->table_options);
 
-    /* match TidesDB memtable flush size 64 MB */
-    rocksdb_options_set_write_buffer_size(handle->options, 64 * 1024 * 1024);
+    /* use configurable memtable size or default to 64 MB */
+    size_t memtable_size = config->memtable_size > 0 ? config->memtable_size : 64 * (1024*1024);
+    rocksdb_options_set_write_buffer_size(handle->options, memtable_size);
 
     /* match TidesDB thread configuration */
     rocksdb_options_set_max_background_jobs(handle->options, 8); /* 4 flush + 4 compaction */
+
+    /* use configurable BlobDB setting or default to disabled */
+    int use_blobdb = config->enable_blobdb >= 0 ? config->enable_blobdb : 0;
+    if (use_blobdb) {
+        rocksdb_options_set_enable_blob_files(handle->options, 1);
+        rocksdb_options_set_min_blob_size(handle->options, 4096); /* values >= 4KB go to blob files */
+        rocksdb_options_set_blob_file_size(handle->options, 256 * 1024 * 1024); /* 256MB blob files */
+        rocksdb_options_set_blob_compression_type(handle->options, rocksdb_lz4_compression);
+        rocksdb_options_set_enable_blob_gc(handle->options, 1);
+        rocksdb_options_set_blob_gc_age_cutoff(handle->options, 0.25); /* GC blobs older than 25% */
+    }
 
     handle->roptions = rocksdb_readoptions_create();
     handle->woptions = rocksdb_writeoptions_create();

@@ -49,6 +49,22 @@ static void print_usage(const char *prog)
         "delete, seek, range (default: mixed)\n");
     printf("  --sync                    Enable fsync for durable writes (slower)\n");
     printf("  --range-size <num>        Number of keys per range query (default: 100)\n");
+    printf("  --memtable-size <bytes>   Memtable/write buffer size in bytes (0 = default)\n");
+    printf("  --block-cache-size <bytes> Block cache size in bytes (0 = default)\n");
+    printf("  --rocksdb-blobdb          Enable RocksDB BlobDB for large values\n");
+    printf("  --no-rocksdb-blobdb       Disable RocksDB BlobDB\n");
+    printf("  --bloom-fp <fp>           Bloom filter false positive rate (0.01 = default)\n");
+    printf("  --l0_queue_stall_threshold <num> L0 queue stall threshold (10 = default) (TidesDB) \n");
+    printf("  --l1_file_count_trigger <num> L1 file count trigger (4 = default) (TidesDB) \n");
+    printf("  --bloom-filters           Enable bloom filters\n");
+    printf("  --klog_value_threshold <bytes> Klog value threshold (512 bytes = default)\n");
+    printf("  --dividing_level_offset <num> Dividing level offset (TidesDB) (2 = default)\n");
+    printf("  --min_levels <num> Minimum levels (TidesDB) (5 = default)\n");
+    printf("  --index_sample_ratio <num> Sample ratio for block indexes (TidesDB) (1 = default)\n");
+    printf("  --block_index_prefix_len <num> Sample prefix length for min-max block indexes (TidesDB) (16 = default)\n");
+    printf("  --no-bloom-filters        Disable bloom filters\n");
+    printf("  --block-indexes           Enable block indexes\n");
+    printf("  --no-block-indexes        Disable block indexes\n");
     printf("  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);
@@ -70,7 +86,32 @@ int main(int argc, char **argv)
                                  .key_pattern = KEY_PATTERN_RANDOM,
                                  .workload_type = WORKLOAD_MIXED,
                                  .sync_enabled = 0,
-                                 .range_size = 100};
+                                 .range_size = 100,
+                                 .memtable_size = 0,
+                                 .block_cache_size = 0,
+                                 .enable_blobdb = -1,
+                                 .enable_bloom_filter = -1,
+                                 .enable_block_indexes = -1,
+                                 .bloom_fpr = 0.01,
+                                 .l0_queue_stall_threshold = 10,
+                                 .l1_file_count_trigger = 4,
+                                 .dividing_level_offset = 2,
+                                 .min_levels = 5,
+                                 .index_sample_ratio = 1,
+                                 .block_index_prefix_len = 16,
+                                 .klog_value_threshold = 512};
+
+    enum
+    {
+        OPT_BLOOM_FPR = 1000,
+        OPT_L0_QUEUE_STALL_THRESHOLD,
+        OPT_L1_FILE_COUNT_TRIGGER,
+        OPT_DIVIDING_LEVEL_OFFSET,
+        OPT_MIN_LEVELS,
+        OPT_INDEX_SAMPLE_RATIO,
+        OPT_BLOCK_INDEX_PREFIX_LEN,
+        OPT_KLOG_VALUE_THRESHOLD
+    };
 
     static struct option long_options[] = {{"engine", required_argument, 0, 'e'},
                                            {"operations", required_argument, 0, 'o'},
@@ -85,13 +126,35 @@ int main(int argc, char **argv)
                                            {"workload", required_argument, 0, 'w'},
                                            {"sync", no_argument, 0, 'S'},
                                            {"range-size", required_argument, 0, 'R'},
+                                           {"memtable-size", required_argument, 0, 'M'},
+                                           {"block-cache-size", required_argument, 0, 'C'},
+                                           {"rocksdb-blobdb", no_argument, 0, 'B'},
+                                           {"no-rocksdb-blobdb", no_argument, 0, 'N'},
+                                           {"bloom-filters", no_argument, 0, 'F'},
+                                           {"no-bloom-filters", no_argument, 0, 'G'},
+                                           {"block-indexes", no_argument, 0, 'I'},
+                                           {"no-block-indexes", no_argument, 0, 'J'},
+                                           {"bloom-fpr", required_argument, 0, OPT_BLOOM_FPR},
+                                           {"l0_queue_stall_threshold", required_argument, 0,
+                                            OPT_L0_QUEUE_STALL_THRESHOLD},
+                                           {"l1_file_count_trigger", required_argument, 0,
+                                            OPT_L1_FILE_COUNT_TRIGGER},
+                                           {"dividing_level_offset", required_argument, 0,
+                                            OPT_DIVIDING_LEVEL_OFFSET},
+                                           {"min_levels", required_argument, 0, OPT_MIN_LEVELS},
+                                           {"index_sample_ratio", required_argument, 0,
+                                            OPT_INDEX_SAMPLE_RATIO},
+                                           {"block_index_prefix_len", required_argument, 0,
+                                            OPT_BLOCK_INDEX_PREFIX_LEN},
+                                           {"klog_value_threshold", required_argument, 0,
+                                            OPT_KLOG_VALUE_THRESHOLD},
                                            {"help", no_argument, 0, 'h'},
                                            {0, 0, 0, 0}};
 
     int opt;
     int option_index = 0;
 
-    while ((opt = getopt_long(argc, argv, "e:o:k:v:t:b:d:cr:sp:w:R:h", long_options,
+    while ((opt = getopt_long(argc, argv, "e:o:k:v:t:b:d:cr:sp:w:R:M:C:h", long_options,
                               &option_index)) != -1)
     {
         switch (opt)
@@ -116,6 +179,9 @@ int main(int argc, char **argv)
                 break;
             case 'd':
                 config.db_path = optarg;
+                break;
+            case 's':
+                config.key_pattern = KEY_PATTERN_SEQUENTIAL;
                 break;
             case 'c':
                 config.compare_mode = 1;
@@ -167,9 +233,57 @@ int main(int argc, char **argv)
             case 'R':
                 config.range_size = atoi(optarg);
                 break;
+            case 'M':
+                config.memtable_size = (size_t)atoll(optarg);
+                break;
+            case 'C':
+                config.block_cache_size = (size_t)atoll(optarg);
+                break;
+            case 'B':
+                config.enable_blobdb = 1;
+                break;
+            case 'N':
+                config.enable_blobdb = 0;
+                break;
+            case 'F':
+                config.enable_bloom_filter = 1;
+                break;
+            case 'G':
+                config.enable_bloom_filter = 0;
+                break;
+            case 'I':
+                config.enable_block_indexes = 1;
+                break;
+            case 'J':
+                config.enable_block_indexes = 0;
+                break;
             case 'h':
                 print_usage(argv[0]);
                 return 0;
+            case OPT_BLOOM_FPR:
+                config.bloom_fpr = atof(optarg);
+                break;
+            case OPT_L0_QUEUE_STALL_THRESHOLD:
+                config.l0_queue_stall_threshold = atoi(optarg);
+                break;
+            case OPT_L1_FILE_COUNT_TRIGGER:
+                config.l1_file_count_trigger = atoi(optarg);
+                break;
+            case OPT_DIVIDING_LEVEL_OFFSET:
+                config.dividing_level_offset = atoi(optarg);
+                break;
+            case OPT_MIN_LEVELS:
+                config.min_levels = atoi(optarg);
+                break;
+            case OPT_INDEX_SAMPLE_RATIO:
+                config.index_sample_ratio = atoi(optarg);
+                break;
+            case OPT_BLOCK_INDEX_PREFIX_LEN:
+                config.block_index_prefix_len = atoi(optarg);
+                break;
+            case OPT_KLOG_VALUE_THRESHOLD:
+                config.klog_value_threshold = (size_t)atoll(optarg);
+                break;
             default:
                 print_usage(argv[0]);
                 return 1;
