@@ -319,6 +319,19 @@ static void calculate_stats(double *latencies, int count, operation_stats_t *sta
     }
 
     stats->avg_latency_us = sum / count;
+
+    double variance = 0.0;
+    for (int i = 0; i < count; i++)
+    {
+        double diff = latencies[i] - stats->avg_latency_us;
+        variance += diff * diff;
+    }
+    stats->std_dev_us = sqrt(variance / count);
+
+    stats->cv_percent = (stats->avg_latency_us > 0.0) 
+        ? (stats->std_dev_us / stats->avg_latency_us) * 100.0 
+        : 0.0;
+
     stats->p50_latency_us = latencies[(int)(count * 0.50)];
     stats->p95_latency_us = latencies[(int)(count * 0.95)];
     stats->p99_latency_us = latencies[(int)(count * 0.99)];
@@ -1136,6 +1149,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Throughput: %.2f ops/sec\n", results->put_stats.ops_per_second);
         fprintf(fp, "  Duration: %.3f seconds\n", results->put_stats.duration_seconds);
         fprintf(fp, "  Latency (avg): %.2f μs\n", results->put_stats.avg_latency_us);
+        fprintf(fp, "  Latency (stddev): %.2f μs\n", results->put_stats.std_dev_us);
+        fprintf(fp, "  Latency (CV): %.2f%%\n", results->put_stats.cv_percent);
         fprintf(fp, "  Latency (p50): %.2f μs\n", results->put_stats.p50_latency_us);
         fprintf(fp, "  Latency (p95): %.2f μs\n", results->put_stats.p95_latency_us);
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->put_stats.p99_latency_us);
@@ -1149,6 +1164,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Throughput: %.2f ops/sec\n", results->get_stats.ops_per_second);
         fprintf(fp, "  Duration: %.3f seconds\n", results->get_stats.duration_seconds);
         fprintf(fp, "  Latency (avg): %.2f μs\n", results->get_stats.avg_latency_us);
+        fprintf(fp, "  Latency (stddev): %.2f μs\n", results->get_stats.std_dev_us);
+        fprintf(fp, "  Latency (CV): %.2f%%\n", results->get_stats.cv_percent);
         fprintf(fp, "  Latency (p50): %.2f μs\n", results->get_stats.p50_latency_us);
         fprintf(fp, "  Latency (p95): %.2f μs\n", results->get_stats.p95_latency_us);
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->get_stats.p99_latency_us);
@@ -1162,6 +1179,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Throughput: %.2f ops/sec\n", results->delete_stats.ops_per_second);
         fprintf(fp, "  Duration: %.3f seconds\n", results->delete_stats.duration_seconds);
         fprintf(fp, "  Latency (avg): %.2f μs\n", results->delete_stats.avg_latency_us);
+        fprintf(fp, "  Latency (stddev): %.2f μs\n", results->delete_stats.std_dev_us);
+        fprintf(fp, "  Latency (CV): %.2f%%\n", results->delete_stats.cv_percent);
         fprintf(fp, "  Latency (p50): %.2f μs\n", results->delete_stats.p50_latency_us);
         fprintf(fp, "  Latency (p95): %.2f μs\n", results->delete_stats.p95_latency_us);
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->delete_stats.p99_latency_us);
@@ -1175,6 +1194,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Throughput: %.2f ops/sec\n", results->seek_stats.ops_per_second);
         fprintf(fp, "  Duration: %.3f seconds\n", results->seek_stats.duration_seconds);
         fprintf(fp, "  Latency (avg): %.2f μs\n", results->seek_stats.avg_latency_us);
+        fprintf(fp, "  Latency (stddev): %.2f μs\n", results->seek_stats.std_dev_us);
+        fprintf(fp, "  Latency (CV): %.2f%%\n", results->seek_stats.cv_percent);
         fprintf(fp, "  Latency (p50): %.2f μs\n", results->seek_stats.p50_latency_us);
         fprintf(fp, "  Latency (p95): %.2f μs\n", results->seek_stats.p95_latency_us);
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->seek_stats.p99_latency_us);
@@ -1188,6 +1209,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         fprintf(fp, "  Throughput: %.2f ops/sec\n", results->range_stats.ops_per_second);
         fprintf(fp, "  Duration: %.3f seconds\n", results->range_stats.duration_seconds);
         fprintf(fp, "  Latency (avg): %.2f μs\n", results->range_stats.avg_latency_us);
+        fprintf(fp, "  Latency (stddev): %.2f μs\n", results->range_stats.std_dev_us);
+        fprintf(fp, "  Latency (CV): %.2f%%\n", results->range_stats.cv_percent);
         fprintf(fp, "  Latency (p50): %.2f μs\n", results->range_stats.p50_latency_us);
         fprintf(fp, "  Latency (p95): %.2f μs\n", results->range_stats.p95_latency_us);
         fprintf(fp, "  Latency (p99): %.2f μs\n", results->range_stats.p99_latency_us);
@@ -1305,6 +1328,341 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
         {
             fprintf(fp, "  Space Amplification: %.2fx vs %.2fx\n",
                     results->resources.space_amplification,
+                    baseline->resources.space_amplification);
+        }
+    }
+}
+
+void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline)
+{
+    const char *engine = results->engine_name;
+    const char *baseline_engine = baseline ? baseline->engine_name : NULL;
+
+    fprintf(fp, "engine,operation,ops_per_sec,duration_sec,avg_latency_us,stddev_us,cv_percent,"
+                "p50_us,p95_us,p99_us,min_us,max_us,"
+                "peak_rss_mb,peak_vms_mb,disk_read_mb,disk_write_mb,"
+                "cpu_user_sec,cpu_sys_sec,cpu_percent,db_size_mb,"
+                "write_amp,read_amp,space_amp\n");
+
+    if (results->put_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,PUT,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->put_stats.ops_per_second,
+                results->put_stats.duration_seconds,
+                results->put_stats.avg_latency_us,
+                results->put_stats.std_dev_us,
+                results->put_stats.cv_percent,
+                results->put_stats.p50_latency_us,
+                results->put_stats.p95_latency_us,
+                results->put_stats.p99_latency_us,
+                results->put_stats.min_latency_us,
+                results->put_stats.max_latency_us,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (results->get_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,GET,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->get_stats.ops_per_second,
+                results->get_stats.duration_seconds,
+                results->get_stats.avg_latency_us,
+                results->get_stats.std_dev_us,
+                results->get_stats.cv_percent,
+                results->get_stats.p50_latency_us,
+                results->get_stats.p95_latency_us,
+                results->get_stats.p99_latency_us,
+                results->get_stats.min_latency_us,
+                results->get_stats.max_latency_us,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (results->delete_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,DELETE,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->delete_stats.ops_per_second,
+                results->delete_stats.duration_seconds,
+                results->delete_stats.avg_latency_us,
+                results->delete_stats.std_dev_us,
+                results->delete_stats.cv_percent,
+                results->delete_stats.p50_latency_us,
+                results->delete_stats.p95_latency_us,
+                results->delete_stats.p99_latency_us,
+                results->delete_stats.min_latency_us,
+                results->delete_stats.max_latency_us,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (results->seek_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,SEEK,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->seek_stats.ops_per_second,
+                results->seek_stats.duration_seconds,
+                results->seek_stats.avg_latency_us,
+                results->seek_stats.std_dev_us,
+                results->seek_stats.cv_percent,
+                results->seek_stats.p50_latency_us,
+                results->seek_stats.p95_latency_us,
+                results->seek_stats.p99_latency_us,
+                results->seek_stats.min_latency_us,
+                results->seek_stats.max_latency_us,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (results->range_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,RANGE,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->range_stats.ops_per_second,
+                results->range_stats.duration_seconds,
+                results->range_stats.avg_latency_us,
+                results->range_stats.std_dev_us,
+                results->range_stats.cv_percent,
+                results->range_stats.p50_latency_us,
+                results->range_stats.p95_latency_us,
+                results->range_stats.p99_latency_us,
+                results->range_stats.min_latency_us,
+                results->range_stats.max_latency_us,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (results->iteration_stats.ops_per_second > 0)
+    {
+        fprintf(fp, "%s,ITER,%.2f,%.3f,0,0,0,0,0,0,0,0,"
+                    "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                engine,
+                results->iteration_stats.ops_per_second,
+                results->iteration_stats.duration_seconds,
+                results->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                results->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                results->resources.bytes_read / (1024.0 * 1024.0),
+                results->resources.bytes_written / (1024.0 * 1024.0),
+                results->resources.cpu_user_time,
+                results->resources.cpu_system_time,
+                results->resources.cpu_percent,
+                results->resources.storage_size_bytes / (1024.0 * 1024.0),
+                results->resources.write_amplification,
+                results->resources.read_amplification,
+                results->resources.space_amplification);
+    }
+
+    if (baseline)
+    {
+        if (baseline->put_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,PUT,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->put_stats.ops_per_second,
+                    baseline->put_stats.duration_seconds,
+                    baseline->put_stats.avg_latency_us,
+                    baseline->put_stats.std_dev_us,
+                    baseline->put_stats.cv_percent,
+                    baseline->put_stats.p50_latency_us,
+                    baseline->put_stats.p95_latency_us,
+                    baseline->put_stats.p99_latency_us,
+                    baseline->put_stats.min_latency_us,
+                    baseline->put_stats.max_latency_us,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
+                    baseline->resources.space_amplification);
+        }
+
+        if (baseline->get_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,GET,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->get_stats.ops_per_second,
+                    baseline->get_stats.duration_seconds,
+                    baseline->get_stats.avg_latency_us,
+                    baseline->get_stats.std_dev_us,
+                    baseline->get_stats.cv_percent,
+                    baseline->get_stats.p50_latency_us,
+                    baseline->get_stats.p95_latency_us,
+                    baseline->get_stats.p99_latency_us,
+                    baseline->get_stats.min_latency_us,
+                    baseline->get_stats.max_latency_us,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
+                    baseline->resources.space_amplification);
+        }
+
+        if (baseline->delete_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,DELETE,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->delete_stats.ops_per_second,
+                    baseline->delete_stats.duration_seconds,
+                    baseline->delete_stats.avg_latency_us,
+                    baseline->delete_stats.std_dev_us,
+                    baseline->delete_stats.cv_percent,
+                    baseline->delete_stats.p50_latency_us,
+                    baseline->delete_stats.p95_latency_us,
+                    baseline->delete_stats.p99_latency_us,
+                    baseline->delete_stats.min_latency_us,
+                    baseline->delete_stats.max_latency_us,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
+                    baseline->resources.space_amplification);
+        }
+
+        if (baseline->seek_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,SEEK,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->seek_stats.ops_per_second,
+                    baseline->seek_stats.duration_seconds,
+                    baseline->seek_stats.avg_latency_us,
+                    baseline->seek_stats.std_dev_us,
+                    baseline->seek_stats.cv_percent,
+                    baseline->seek_stats.p50_latency_us,
+                    baseline->seek_stats.p95_latency_us,
+                    baseline->seek_stats.p99_latency_us,
+                    baseline->seek_stats.min_latency_us,
+                    baseline->seek_stats.max_latency_us,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
+                    baseline->resources.space_amplification);
+        }
+
+        if (baseline->range_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,RANGE,%.2f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->range_stats.ops_per_second,
+                    baseline->range_stats.duration_seconds,
+                    baseline->range_stats.avg_latency_us,
+                    baseline->range_stats.std_dev_us,
+                    baseline->range_stats.cv_percent,
+                    baseline->range_stats.p50_latency_us,
+                    baseline->range_stats.p95_latency_us,
+                    baseline->range_stats.p99_latency_us,
+                    baseline->range_stats.min_latency_us,
+                    baseline->range_stats.max_latency_us,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
+                    baseline->resources.space_amplification);
+        }
+
+        if (baseline->iteration_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "%s,ITER,%.2f,%.3f,0,0,0,0,0,0,0,0,"
+                        "%.2f,%.2f,%.2f,%.2f,%.3f,%.3f,%.1f,%.2f,%.2f,%.2f,%.2f\n",
+                    baseline_engine,
+                    baseline->iteration_stats.ops_per_second,
+                    baseline->iteration_stats.duration_seconds,
+                    baseline->resources.peak_rss_bytes / (1024.0 * 1024.0),
+                    baseline->resources.peak_vms_bytes / (1024.0 * 1024.0),
+                    baseline->resources.bytes_read / (1024.0 * 1024.0),
+                    baseline->resources.bytes_written / (1024.0 * 1024.0),
+                    baseline->resources.cpu_user_time,
+                    baseline->resources.cpu_system_time,
+                    baseline->resources.cpu_percent,
+                    baseline->resources.storage_size_bytes / (1024.0 * 1024.0),
+                    baseline->resources.write_amplification,
+                    baseline->resources.read_amplification,
                     baseline->resources.space_amplification);
         }
     }

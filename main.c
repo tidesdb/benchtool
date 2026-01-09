@@ -39,6 +39,7 @@ static void print_usage(const char *prog)
     printf("  -d, --db-path <path>      Database path (default: ./bench_db)\n");
     printf("  -c, --compare             Compare against RocksDB baseline\n");
     printf("  -r, --report <file>       Output report to file (default: stdout)\n");
+    printf("  --csv <file>              Export results to CSV file for graphing\n");
     printf("  -s, --sequential          Use sequential keys instead of random\n");
     printf(
         "  -p, --pattern <type>      Key pattern: seq, random, zipfian, "
@@ -86,6 +87,7 @@ int main(int argc, char **argv)
                                  .db_path = "./bench_db",
                                  .compare_mode = 0,
                                  .report_file = NULL,
+                                 .csv_file = NULL,
                                  .key_pattern = KEY_PATTERN_RANDOM,
                                  .workload_type = WORKLOAD_MIXED,
                                  .sync_enabled = 0,
@@ -126,6 +128,7 @@ int main(int argc, char **argv)
         {"db-path", required_argument, 0, 'd'},
         {"compare", no_argument, 0, 'c'},
         {"report", required_argument, 0, 'r'},
+        {"csv", required_argument, 0, 'X'},
         {"pattern", required_argument, 0, 'p'},
         {"workload", required_argument, 0, 'w'},
         {"sync", no_argument, 0, 'S'},
@@ -186,6 +189,9 @@ int main(int argc, char **argv)
                 break;
             case 'r':
                 config.report_file = optarg;
+                break;
+            case 'X':
+                config.csv_file = optarg;
                 break;
             case 'p':
                 if (strcmp(optarg, "seq") == 0 || strcmp(optarg, "sequential") == 0)
@@ -390,6 +396,21 @@ int main(int argc, char **argv)
     {
         fclose(report_fp);
         printf("\nReport written to: %s\n", config.report_file);
+    }
+
+    if (config.csv_file)
+    {
+        FILE *csv_fp = fopen(config.csv_file, "w");
+        if (csv_fp)
+        {
+            generate_csv(csv_fp, results, baseline_results);
+            fclose(csv_fp);
+            printf("CSV exported to: %s\n", config.csv_file);
+        }
+        else
+        {
+            fprintf(stderr, "Failed to open CSV file: %s\n", config.csv_file);
+        }
     }
 
     free_results(results);

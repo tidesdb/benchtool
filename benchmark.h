@@ -58,6 +58,7 @@ typedef struct
     const char *db_path;
     int compare_mode;
     const char *report_file;
+    const char *csv_file;
     key_pattern_t key_pattern;
     workload_type_t workload_type;
     int sync_enabled;
@@ -85,6 +86,8 @@ typedef struct
     double duration_seconds;
     double ops_per_second;
     double avg_latency_us;
+    double std_dev_us;
+    double cv_percent;
     double p50_latency_us;
     double p95_latency_us;
     double p99_latency_us;
@@ -181,6 +184,7 @@ struct storage_engine_t
 
 int run_benchmark(benchmark_config_t *config, benchmark_results_t **results);
 void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline);
+void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline);
 void free_results(benchmark_results_t *results);
 
 const storage_engine_ops_t *get_engine_ops(const char *engine_name);
