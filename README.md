@@ -20,15 +20,16 @@ Usage: benchtool [OPTIONS]
 
 Options:
   -e, --engine <name>            Storage engine to benchmark (tidesdb, rocksdb)
-  -o, --operations <num>         Number of operations (default: 100000)
+  -o, --operations <num>         Number of operations (default: 10000000)
   -k, --key-size <bytes>         Key size in bytes (default: 16)
   -v, --value-size <bytes>       Value size in bytes (default: 100)
-  -t, --threads <num>            Number of threads (default: 1)
+  -t, --threads <num>            Number of threads (default: 4)
   -b, --batch-size <num>         Batch size for operations (default: 1)
   -d, --db-path <path>           Database path (default: ./bench_db)
   -s, --sequential               Shortcut for sequential key pattern
   -c, --compare                  Compare against RocksDB baseline
   -r, --report <file>            Output report to file (default: stdout)
+  --csv <file>                   Export results to CSV file for graphing
   -p, --pattern <type>           Key pattern: seq, random, zipfian, uniform, timestamp, reverse (default: random)
   -w, --workload <type>          Workload type: write, read, mixed, delete, seek, range (default: mixed)
   --range-size <num>             Number of keys to iterate in range queries (default: 100)
@@ -55,6 +56,7 @@ The benchtool has default runners such as
 - `large_value_benchmark.sh` - runs 8kb value size benchmark comparisons against RocksDB+
 - `large_value_benchmark_1gb.sh` - runs 1gb value size benchmark comparisons against RocksDB+
 - `tidesdb_rocksdb.sh` - is the main benchtool suite runner
+- `tidesdb_rocksdb_synced.sh` - synced (durable) write benchmark suite with fsync enabled
 
 ## Usage Examples
 
@@ -173,6 +175,12 @@ Seek benchmarks test the effectiveness of block indexes and bloom filters for po
 
 # Compare and save to file
 ./benchtool -e tidesdb -c -o 500000 -t 4 -r comparison.txt
+
+# Export results to CSV for graphing
+./benchtool -e tidesdb -c -o 500000 -t 4 --csv results.csv
+
+# Generate both report and CSV
+./benchtool -e tidesdb -c -o 500000 -t 4 -r report.txt --csv results.csv
 ```
 
 ### Durability Options
@@ -202,7 +210,7 @@ Benchtool provides performance and resource metrics
 
 ### Performance Metrics
 
-The benchmark measures throughput as operations per second for PUT, GET, DELETE, and ITER operations, providing a clear picture of how fast each storage engine can handle different workload types. Latency statistics capture the complete distribution of operation times, including average latency, median (p50), 95th percentile (p95), 99th percentile (p99), as well as minimum and maximum values in microseconds. Duration tracking shows the total wall-clock time spent on each operation type, helping identify which operations dominate the overall benchmark runtime.
+The benchmark measures throughput as operations per second for PUT, GET, DELETE, and ITER operations, providing a clear picture of how fast each storage engine can handle different workload types. Latency statistics capture the complete distribution of operation times, including average latency, standard deviation, coefficient of variation (CV%), median (p50), 95th percentile (p95), 99th percentile (p99), as well as minimum and maximum values in microseconds. The coefficient of variation (stddev/mean × 100) helps identify inconsistent performance—high CV% indicates variable latency. Duration tracking shows the total wall-clock time spent on each operation type, helping identify which operations dominate the overall benchmark runtime.
 
 ### Resource Metrics
 
