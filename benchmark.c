@@ -1256,33 +1256,235 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
 
     if (baseline)
     {
-        fprintf(fp, "=== Comparison vs %s ===\n\n", baseline->engine_name);
+        fprintf(fp, "=== %s Baseline Results ===\n\n", baseline->engine_name);
 
+        if (baseline->put_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "PUT Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->put_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n", baseline->put_stats.duration_seconds);
+            fprintf(fp, "  Latency (avg): %.2f μs\n", baseline->put_stats.avg_latency_us);
+            fprintf(fp, "  Latency (stddev): %.2f μs\n", baseline->put_stats.std_dev_us);
+            fprintf(fp, "  Latency (CV): %.2f%%\n", baseline->put_stats.cv_percent);
+            fprintf(fp, "  Latency (p50): %.2f μs\n", baseline->put_stats.p50_latency_us);
+            fprintf(fp, "  Latency (p95): %.2f μs\n", baseline->put_stats.p95_latency_us);
+            fprintf(fp, "  Latency (p99): %.2f μs\n", baseline->put_stats.p99_latency_us);
+            fprintf(fp, "  Latency (min): %.2f μs\n", baseline->put_stats.min_latency_us);
+            fprintf(fp, "  Latency (max): %.2f μs\n\n", baseline->put_stats.max_latency_us);
+        }
+
+        if (baseline->get_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "GET Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->get_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n", baseline->get_stats.duration_seconds);
+            fprintf(fp, "  Latency (avg): %.2f μs\n", baseline->get_stats.avg_latency_us);
+            fprintf(fp, "  Latency (stddev): %.2f μs\n", baseline->get_stats.std_dev_us);
+            fprintf(fp, "  Latency (CV): %.2f%%\n", baseline->get_stats.cv_percent);
+            fprintf(fp, "  Latency (p50): %.2f μs\n", baseline->get_stats.p50_latency_us);
+            fprintf(fp, "  Latency (p95): %.2f μs\n", baseline->get_stats.p95_latency_us);
+            fprintf(fp, "  Latency (p99): %.2f μs\n", baseline->get_stats.p99_latency_us);
+            fprintf(fp, "  Latency (min): %.2f μs\n", baseline->get_stats.min_latency_us);
+            fprintf(fp, "  Latency (max): %.2f μs\n\n", baseline->get_stats.max_latency_us);
+        }
+
+        if (baseline->delete_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "DELETE Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->delete_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n", baseline->delete_stats.duration_seconds);
+            fprintf(fp, "  Latency (avg): %.2f μs\n", baseline->delete_stats.avg_latency_us);
+            fprintf(fp, "  Latency (stddev): %.2f μs\n", baseline->delete_stats.std_dev_us);
+            fprintf(fp, "  Latency (CV): %.2f%%\n", baseline->delete_stats.cv_percent);
+            fprintf(fp, "  Latency (p50): %.2f μs\n", baseline->delete_stats.p50_latency_us);
+            fprintf(fp, "  Latency (p95): %.2f μs\n", baseline->delete_stats.p95_latency_us);
+            fprintf(fp, "  Latency (p99): %.2f μs\n", baseline->delete_stats.p99_latency_us);
+            fprintf(fp, "  Latency (min): %.2f μs\n", baseline->delete_stats.min_latency_us);
+            fprintf(fp, "  Latency (max): %.2f μs\n\n", baseline->delete_stats.max_latency_us);
+        }
+
+        if (baseline->seek_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "SEEK Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->seek_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n", baseline->seek_stats.duration_seconds);
+            fprintf(fp, "  Latency (avg): %.2f μs\n", baseline->seek_stats.avg_latency_us);
+            fprintf(fp, "  Latency (stddev): %.2f μs\n", baseline->seek_stats.std_dev_us);
+            fprintf(fp, "  Latency (CV): %.2f%%\n", baseline->seek_stats.cv_percent);
+            fprintf(fp, "  Latency (p50): %.2f μs\n", baseline->seek_stats.p50_latency_us);
+            fprintf(fp, "  Latency (p95): %.2f μs\n", baseline->seek_stats.p95_latency_us);
+            fprintf(fp, "  Latency (p99): %.2f μs\n", baseline->seek_stats.p99_latency_us);
+            fprintf(fp, "  Latency (min): %.2f μs\n", baseline->seek_stats.min_latency_us);
+            fprintf(fp, "  Latency (max): %.2f μs\n\n", baseline->seek_stats.max_latency_us);
+        }
+
+        if (baseline->range_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "RANGE Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->range_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n", baseline->range_stats.duration_seconds);
+            fprintf(fp, "  Latency (avg): %.2f μs\n", baseline->range_stats.avg_latency_us);
+            fprintf(fp, "  Latency (stddev): %.2f μs\n", baseline->range_stats.std_dev_us);
+            fprintf(fp, "  Latency (CV): %.2f%%\n", baseline->range_stats.cv_percent);
+            fprintf(fp, "  Latency (p50): %.2f μs\n", baseline->range_stats.p50_latency_us);
+            fprintf(fp, "  Latency (p95): %.2f μs\n", baseline->range_stats.p95_latency_us);
+            fprintf(fp, "  Latency (p99): %.2f μs\n", baseline->range_stats.p99_latency_us);
+            fprintf(fp, "  Latency (min): %.2f μs\n", baseline->range_stats.min_latency_us);
+            fprintf(fp, "  Latency (max): %.2f μs\n\n", baseline->range_stats.max_latency_us);
+        }
+
+        if (baseline->iteration_stats.ops_per_second > 0)
+        {
+            fprintf(fp, "ITER Operations:\n");
+            fprintf(fp, "  Throughput: %.2f ops/sec\n", baseline->iteration_stats.ops_per_second);
+            fprintf(fp, "  Duration: %.3f seconds\n\n", baseline->iteration_stats.duration_seconds);
+        }
+
+        /* baseline resource usage */
+        fprintf(fp, "Resource Usage:\n");
+        fprintf(fp, "  Peak RSS: %.2f MB\n",
+                baseline->resources.peak_rss_bytes / (1024.0 * 1024.0));
+        fprintf(fp, "  Peak VMS: %.2f MB\n",
+                baseline->resources.peak_vms_bytes / (1024.0 * 1024.0));
+        fprintf(fp, "  Disk Reads: %.2f MB\n",
+                baseline->resources.bytes_read / (1024.0 * 1024.0));
+        fprintf(fp, "  Disk Writes: %.2f MB\n",
+                baseline->resources.bytes_written / (1024.0 * 1024.0));
+        fprintf(fp, "  CPU User Time: %.3f seconds\n", baseline->resources.cpu_user_time);
+        fprintf(fp, "  CPU System Time: %.3f seconds\n", baseline->resources.cpu_system_time);
+        fprintf(fp, "  CPU Utilization: %.1f%%\n", baseline->resources.cpu_percent);
+        fprintf(fp, "  Database Size: %.2f MB\n\n",
+                baseline->resources.storage_size_bytes / (1024.0 * 1024.0));
+
+        /* baseline amplification factors */
+        fprintf(fp, "Amplification Factors:\n");
+        if (baseline->resources.write_amplification > 0)
+        {
+            fprintf(fp, "  Write Amplification: %.2fx\n", baseline->resources.write_amplification);
+        }
+        if (baseline->resources.read_amplification > 0)
+        {
+            fprintf(fp, "  Read Amplification: %.2fx\n", baseline->resources.read_amplification);
+        }
+        if (baseline->resources.space_amplification > 0)
+        {
+            fprintf(fp, "  Space Amplification: %.2fx\n", baseline->resources.space_amplification);
+        }
+
+        fprintf(fp, "\n=== Comparison: %s vs %s ===\n\n", results->engine_name, baseline->engine_name);
+
+        /* throughput comparison */
+        fprintf(fp, "Throughput Comparison:\n");
         if (results->put_stats.ops_per_second > 0 && baseline->put_stats.ops_per_second > 0)
         {
             double speedup = results->put_stats.ops_per_second / baseline->put_stats.ops_per_second;
-            fprintf(fp, "PUT: %.2fx %s\n", speedup, speedup > 1.0 ? "faster" : "slower");
+            fprintf(fp, "  PUT: %.2fx %s (%.0f vs %.0f ops/sec)\n", 
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->put_stats.ops_per_second, baseline->put_stats.ops_per_second);
         }
 
         if (results->get_stats.ops_per_second > 0 && baseline->get_stats.ops_per_second > 0)
         {
             double speedup = results->get_stats.ops_per_second / baseline->get_stats.ops_per_second;
-            fprintf(fp, "GET: %.2fx %s\n", speedup, speedup > 1.0 ? "faster" : "slower");
+            fprintf(fp, "  GET: %.2fx %s (%.0f vs %.0f ops/sec)\n",
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->get_stats.ops_per_second, baseline->get_stats.ops_per_second);
         }
 
         if (results->delete_stats.ops_per_second > 0 && baseline->delete_stats.ops_per_second > 0)
         {
-            double speedup =
-                results->delete_stats.ops_per_second / baseline->delete_stats.ops_per_second;
-            fprintf(fp, "DELETE: %.2fx %s\n", speedup, speedup > 1.0 ? "faster" : "slower");
+            double speedup = results->delete_stats.ops_per_second / baseline->delete_stats.ops_per_second;
+            fprintf(fp, "  DELETE: %.2fx %s (%.0f vs %.0f ops/sec)\n",
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->delete_stats.ops_per_second, baseline->delete_stats.ops_per_second);
         }
 
-        if (results->iteration_stats.ops_per_second > 0 &&
-            baseline->iteration_stats.ops_per_second > 0)
+        if (results->seek_stats.ops_per_second > 0 && baseline->seek_stats.ops_per_second > 0)
         {
-            double speedup =
-                results->iteration_stats.ops_per_second / baseline->iteration_stats.ops_per_second;
-            fprintf(fp, "ITER: %.2fx %s\n", speedup, speedup > 1.0 ? "faster" : "slower");
+            double speedup = results->seek_stats.ops_per_second / baseline->seek_stats.ops_per_second;
+            fprintf(fp, "  SEEK: %.2fx %s (%.0f vs %.0f ops/sec)\n",
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->seek_stats.ops_per_second, baseline->seek_stats.ops_per_second);
+        }
+
+        if (results->range_stats.ops_per_second > 0 && baseline->range_stats.ops_per_second > 0)
+        {
+            double speedup = results->range_stats.ops_per_second / baseline->range_stats.ops_per_second;
+            fprintf(fp, "  RANGE: %.2fx %s (%.0f vs %.0f ops/sec)\n",
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->range_stats.ops_per_second, baseline->range_stats.ops_per_second);
+        }
+
+        if (results->iteration_stats.ops_per_second > 0 && baseline->iteration_stats.ops_per_second > 0)
+        {
+            double speedup = results->iteration_stats.ops_per_second / baseline->iteration_stats.ops_per_second;
+            fprintf(fp, "  ITER: %.2fx %s (%.0f vs %.0f ops/sec)\n",
+                    speedup > 1.0 ? speedup : 1.0/speedup,
+                    speedup > 1.0 ? "faster" : "slower",
+                    results->iteration_stats.ops_per_second, baseline->iteration_stats.ops_per_second);
+        }
+
+        /* latency comparison */
+        fprintf(fp, "\nLatency Comparison (lower is better):\n");
+        if (results->put_stats.avg_latency_us > 0 && baseline->put_stats.avg_latency_us > 0)
+        {
+            fprintf(fp, "  PUT avg: %.2f μs vs %.2f μs\n",
+                    results->put_stats.avg_latency_us, baseline->put_stats.avg_latency_us);
+            fprintf(fp, "  PUT p99: %.2f μs vs %.2f μs\n",
+                    results->put_stats.p99_latency_us, baseline->put_stats.p99_latency_us);
+            fprintf(fp, "  PUT max: %.2f μs vs %.2f μs\n",
+                    results->put_stats.max_latency_us, baseline->put_stats.max_latency_us);
+            fprintf(fp, "  PUT CV: %.2f%% vs %.2f%%\n",
+                    results->put_stats.cv_percent, baseline->put_stats.cv_percent);
+        }
+        if (results->get_stats.avg_latency_us > 0 && baseline->get_stats.avg_latency_us > 0)
+        {
+            fprintf(fp, "  GET avg: %.2f μs vs %.2f μs\n",
+                    results->get_stats.avg_latency_us, baseline->get_stats.avg_latency_us);
+            fprintf(fp, "  GET p99: %.2f μs vs %.2f μs\n",
+                    results->get_stats.p99_latency_us, baseline->get_stats.p99_latency_us);
+            fprintf(fp, "  GET max: %.2f μs vs %.2f μs\n",
+                    results->get_stats.max_latency_us, baseline->get_stats.max_latency_us);
+            fprintf(fp, "  GET CV: %.2f%% vs %.2f%%\n",
+                    results->get_stats.cv_percent, baseline->get_stats.cv_percent);
+        }
+        if (results->delete_stats.avg_latency_us > 0 && baseline->delete_stats.avg_latency_us > 0)
+        {
+            fprintf(fp, "  DELETE avg: %.2f μs vs %.2f μs\n",
+                    results->delete_stats.avg_latency_us, baseline->delete_stats.avg_latency_us);
+            fprintf(fp, "  DELETE p99: %.2f μs vs %.2f μs\n",
+                    results->delete_stats.p99_latency_us, baseline->delete_stats.p99_latency_us);
+            fprintf(fp, "  DELETE max: %.2f μs vs %.2f μs\n",
+                    results->delete_stats.max_latency_us, baseline->delete_stats.max_latency_us);
+            fprintf(fp, "  DELETE CV: %.2f%% vs %.2f%%\n",
+                    results->delete_stats.cv_percent, baseline->delete_stats.cv_percent);
+        }
+        if (results->seek_stats.avg_latency_us > 0 && baseline->seek_stats.avg_latency_us > 0)
+        {
+            fprintf(fp, "  SEEK avg: %.2f μs vs %.2f μs\n",
+                    results->seek_stats.avg_latency_us, baseline->seek_stats.avg_latency_us);
+            fprintf(fp, "  SEEK p99: %.2f μs vs %.2f μs\n",
+                    results->seek_stats.p99_latency_us, baseline->seek_stats.p99_latency_us);
+            fprintf(fp, "  SEEK max: %.2f μs vs %.2f μs\n",
+                    results->seek_stats.max_latency_us, baseline->seek_stats.max_latency_us);
+            fprintf(fp, "  SEEK CV: %.2f%% vs %.2f%%\n",
+                    results->seek_stats.cv_percent, baseline->seek_stats.cv_percent);
+        }
+        if (results->range_stats.avg_latency_us > 0 && baseline->range_stats.avg_latency_us > 0)
+        {
+            fprintf(fp, "  RANGE avg: %.2f μs vs %.2f μs\n",
+                    results->range_stats.avg_latency_us, baseline->range_stats.avg_latency_us);
+            fprintf(fp, "  RANGE p99: %.2f μs vs %.2f μs\n",
+                    results->range_stats.p99_latency_us, baseline->range_stats.p99_latency_us);
+            fprintf(fp, "  RANGE max: %.2f μs vs %.2f μs\n",
+                    results->range_stats.max_latency_us, baseline->range_stats.max_latency_us);
+            fprintf(fp, "  RANGE CV: %.2f%% vs %.2f%%\n",
+                    results->range_stats.cv_percent, baseline->range_stats.cv_percent);
         }
 
         /* resource comparison */
