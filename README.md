@@ -223,10 +223,18 @@ Amplification metrics help understand the efficiency of storage engines by measu
 ### Comparison Mode
 
 When using `-c` flag, benchtool compares TidesDB against RocksDB and provides:
-- Side-by-side performance comparisons
-- Resource usage comparisons (memory, disk I/O, database size)
-- Amplification factor comparisons
-- Speedup ratios for all metrics
+
+**Full results for both engines**
+- Complete latency statistics (avg, stddev, CV%, p50, p95, p99, min, max)
+- Throughput (ops/sec) and duration
+- Resource usage (memory, disk I/O, CPU, database size)
+- Amplification factors (write, read, space)
+
+**Side-by-side comparisons**
+- Throughput comparison with speedup ratios
+- Latency comparison (avg, p99, max, CV%) for each operation type
+- Resource usage comparison
+- Amplification factor comparison
 
 ## Adding New Engines
 1. Create `engine_yourengine.c` implementing storage_engine_ops_t.  
