@@ -2,7 +2,7 @@
 
 ######################################################################################
 #
-# TidesDB vs RocksDB Comprehensive Benchmark Synced Suite
+# TidesDB vs RocksDB Comprehensive Benchmark Single Threaded Suite
 #
 ######################################################################################
 
@@ -10,10 +10,10 @@ set -e
 
 BENCH="./build/benchtool"
 DB_PATH="db-bench"
-RESULTS="tidesdb_rocksdb_synced.txt"
-CSV_FILE="tidesdb_rocksdb_synced.csv"
+RESULTS="tidesdb_rocksdb_single_threaded.txt"
+CSV_FILE="tidesdb_rocksdb_single_threaded.csv"
 
-SYNC_ENABLED="true"
+SYNC_ENABLED="false"
 
 DEFAULT_BATCH_SIZE=1000
 
@@ -198,87 +198,87 @@ run_range_comparison() {
 }
 
 echo "### 1. Sequential Write Performance (Batched) ###" | tee -a "$RESULTS"
-run_comparison "Sequential Write (10M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p seq -o 10000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_comparison "Sequential Write (10M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p seq -o 10000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 2. Random Write Performance (Batched) ###" | tee -a "$RESULTS"
-run_comparison "Random Write (10M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p random -o 10000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_comparison "Random Write (10M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 10000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 3. Random Read Performance ###" | tee -a "$RESULTS"
-run_read_comparison "Random Read (10M ops, 8 threads)" \
-    -w read -p random -o 10000000 -t 8
+run_read_comparison "Random Read (10M ops, 1 thread)" \
+    -w read -p random -o 10000000 -t 1
 
 echo "### 4. Mixed Workload (50/50 Read/Write, Batched) ###" | tee -a "$RESULTS"
-run_comparison "Mixed Workload (5M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w mixed -p random -o 5000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_comparison "Mixed Workload (5M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p random -o 5000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 5. Hot Key Workload (Zipfian Distribution, Batched) ###" | tee -a "$RESULTS"
-run_comparison "Zipfian Write (5M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p zipfian -o 5000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_comparison "Zipfian Write (5M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p zipfian -o 5000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
-run_comparison "Zipfian Mixed (5M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w mixed -p zipfian -o 5000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_comparison "Zipfian Mixed (5M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p zipfian -o 5000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 6. Delete Performance (Batched) ###" | tee -a "$RESULTS"
-run_delete_comparison "Random Delete (5M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w delete -p random -o 5000000 -t 8 -b $DEFAULT_BATCH_SIZE
+run_delete_comparison "Random Delete (5M ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w delete -p random -o 5000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 7. Large Value Performance (Batched) ###" | tee -a "$RESULTS"
 run_comparison "Large Values (1M ops, 256B key, 4KB value, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p random -k 256 -v 4096 -o 1000000 -t 8 -b $DEFAULT_BATCH_SIZE
+    -w write -p random -k 256 -v 4096 -o 1000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 8. Small Value Performance (Batched) ###" | tee -a "$RESULTS"
 run_comparison "Small Values (50M ops, 16B key, 64B value, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p random -k 16 -v 64 -o 50000000 -t 8 -b $DEFAULT_BATCH_SIZE
+    -w write -p random -k 16 -v 64 -o 50000000 -t 1 -b $DEFAULT_BATCH_SIZE
 
 echo "### 9. Batch Size Comparison ###" | tee -a "$RESULTS"
 echo "Testing impact of different batch sizes on write performance" | tee -a "$RESULTS"
 
 run_comparison "Batch Size 1 (no batching, 10M ops)" \
-    -w write -p random -o 10000000 -t 8 -b 1
+    -w write -p random -o 10000000 -t 1 -b 1
 
 run_comparison "Batch Size 10 (10M ops)" \
-    -w write -p random -o 10000000 -t 8 -b 10
+    -w write -p random -o 10000000 -t 1 -b 10
 
 run_comparison "Batch Size 100 (10M ops)" \
-    -w write -p random -o 10000000 -t 8 -b 100
+    -w write -p random -o 10000000 -t 1 -b 100
 
 run_comparison "Batch Size 1000 (10M ops)" \
-    -w write -p random -o 10000000 -t 8 -b 1000
+    -w write -p random -o 10000000 -t 1 -b 1000
 
 run_comparison "Batch Size 10000 (10M ops)" \
-    -w write -p random -o 10000000 -t 8 -b 10000
+    -w write -p random -o 10000000 -t 1 -b 10000
 
 echo "### 10. Batch Size Impact on Deletes ###" | tee -a "$RESULTS"
 run_delete_comparison "Delete Batch=1 (5M ops)" \
-    -w delete -p random -o 5000000 -t 8 -b 1
+    -w delete -p random -o 5000000 -t 1 -b 1
 
 run_delete_comparison "Delete Batch=100 (5M ops)" \
-    -w delete -p random -o 5000000 -t 8 -b 100
+    -w delete -p random -o 5000000 -t 1 -b 100
 
 run_delete_comparison "Delete Batch=1000 (5M ops)" \
-    -w delete -p random -o 5000000 -t 8 -b 1000
+    -w delete -p random -o 5000000 -t 1 -b 1000
 
 echo "### 11. Seek Performance (Block Index Effectiveness) ###" | tee -a "$RESULTS"
-run_seek_comparison "Random Seek (5M ops, 8 threads)" \
-    -w seek -p random -o 5000000 -t 8
+run_seek_comparison "Random Seek (5M ops, 1 thread)" \
+    -w seek -p random -o 5000000 -t 1
 
-run_seek_comparison "Sequential Seek (5M ops, 8 threads)" \
-    -w seek -p seq -o 5000000 -t 8
+run_seek_comparison "Sequential Seek (5M ops, 1 thread)" \
+    -w seek -p seq -o 5000000 -t 1
 
-run_seek_comparison "Zipfian Seek (5M ops, 8 threads)" \
-    -w seek -p zipfian -o 5000000 -t 8
+run_seek_comparison "Zipfian Seek (5M ops, 1 thread)" \
+    -w seek -p zipfian -o 5000000 -t 1
 
 echo "### 12. Range Query Performance ###" | tee -a "$RESULTS"
-run_range_comparison "Range Scan 100 keys (1M ops, 8 threads)" \
-    -w range -p random -o 1000000 -t 8 --range-size 100
+run_range_comparison "Range Scan 100 keys (1M ops, 1 thread)" \
+    -w range -p random -o 1000000 -t 1 --range-size 100
 
-run_range_comparison "Range Scan 1000 keys (500K ops, 8 threads)" \
-    -w range -p random -o 500000 -t 8 --range-size 1000
+run_range_comparison "Range Scan 1000 keys (500K ops, 1 thread)" \
+    -w range -p random -o 500000 -t 1 --range-size 1000
 
-run_range_comparison "Sequential Range Scan 100 keys (1M ops, 8 threads)" \
-    -w range -p seq -o 1000000 -t 8 --range-size 100
+run_range_comparison "Sequential Range Scan 100 keys (1M ops, 1 thread)" \
+    -w range -p seq -o 1000000 -t 1 --range-size 100
 
 cleanup_db
 
