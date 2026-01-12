@@ -331,9 +331,15 @@ static void calculate_stats(double *latencies, int count, operation_stats_t *sta
     stats->cv_percent =
         (stats->avg_latency_us > 0.0) ? (stats->std_dev_us / stats->avg_latency_us) * 100.0 : 0.0;
 
-    stats->p50_latency_us = latencies[(int)(count * 0.50)];
-    stats->p95_latency_us = latencies[(int)(count * 0.95)];
-    stats->p99_latency_us = latencies[(int)(count * 0.99)];
+    int p50_idx = (int)(count * 0.50);
+    int p95_idx = (int)(count * 0.95);
+    int p99_idx = (int)(count * 0.99);
+    if (p50_idx >= count) p50_idx = count - 1;
+    if (p95_idx >= count) p95_idx = count - 1;
+    if (p99_idx >= count) p99_idx = count - 1;
+    stats->p50_latency_us = latencies[p50_idx];
+    stats->p95_latency_us = latencies[p95_idx];
+    stats->p99_latency_us = latencies[p99_idx];
 }
 
 static void *benchmark_put_thread(void *arg)

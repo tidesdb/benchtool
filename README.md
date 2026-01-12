@@ -57,6 +57,9 @@ The benchtool has default runners such as
 - `large_value_benchmark_1gb.sh` - runs 1gb value size benchmark comparisons against RocksDB+
 - `tidesdb_rocksdb.sh` - is the main benchtool suite runner
 - `tidesdb_rocksdb_synced.sh` - synced (durable) write benchmark suite with fsync enabled
+- `tidesdb_rocksdb_pandas.sh` - generates extensive benchmark comparisons against RocksDB with visualizations from benchmark results (run through tidesdb_rocksdb_pandas.sh)
+- `tidesdb_rocksdb_pandas_extensive.sh` - generates extensive benchmark comparisons against RocksDB with visualizations from benchmark results (run through tidesdb_rocksdb_pandas_extensive.sh)
+
 
 ## Usage Examples
 
