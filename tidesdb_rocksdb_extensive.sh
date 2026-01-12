@@ -1,14 +1,12 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e 
 
-###############################################################################
-# -- Multiple runs per test for statistical significance
-# -- Warm-up phases before measurement
-# -- Cold-start tests (drop caches, restart)
-# -- Proper cache warming sequences
-# -- Controlled test isolation
-###############################################################################
+######################################################################################
+#
+# TidesDB vs RocksDB Comprehensive Benchmark Extensive Suite
+#
+######################################################################################
 
 BENCH="./build/benchtool"
 DB_PATH="db-bench"
@@ -20,8 +18,8 @@ RESULTS_TXT="${RESULTS_DIR}/scientific_${TIMESTAMP}.txt"
 SYNC_ENABLED="false"
 DEFAULT_BATCH_SIZE=1000
 DEFAULT_THREADS=8
-NUM_RUNS=3  # Number of runs per test for statistical significance
-WARMUP_OPS=100000  # Warm-up operations before measurement
+NUM_RUNS=3  
+WARMUP_OPS=100000 
 
 if [ "$SYNC_ENABLED" = "true" ]; then
     SYNC_FLAG="--sync"
@@ -39,7 +37,7 @@ fi
 
 mkdir -p "$RESULTS_DIR"
 
-echo "test_name,run_number,phase,engine,operation,ops_per_sec,duration_sec,avg_latency_us,stddev_us,cv_percent,p50_us,p95_us,p99_us,min_us,max_us,peak_rss_mb,peak_vms_mb,disk_read_mb,disk_write_mb,cpu_user_sec,cpu_sys_sec,cpu_percent,db_size_mb,write_amp,read_amp,space_amp,workload,pattern,ops_count,threads,batch_size,key_size,value_size" > "$CSV_OUTPUT"
+> "$CSV_OUTPUT"
 
 log() {
     echo "$1" | tee -a "$RESULTS_TXT"
@@ -73,54 +71,23 @@ drop_caches() {
     if [ -w /proc/sys/vm/drop_caches ]; then
         echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
     else
-        # Try with sudo if available
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
     fi
     sync
     sleep 1
 }
 
-# Append benchmark result to CSV
-# Args -- test_name, run_number, phase, temp_csv, workload, pattern, ops, threads, batch, key_size, value_size
-append_csv() {
-    local test_name="$1"
-    local run_number="$2"
-    local phase="$3"
-    local temp_csv="$4"
-    local workload="$5"
-    local pattern="$6"
-    local ops="$7"
-    local threads="$8"
-    local batch="$9"
-    local key_size="${10}"
-    local value_size="${11}"
-    
-    if [ -f "$temp_csv" ]; then
-        tail -n +2 "$temp_csv" | while IFS=, read -r eng op ops_sec dur avg std cv p50 p95 p99 min max rss vms dr dw cu cs cp db wa ra sa; do
-            echo "$test_name,$run_number,$phase,$eng,$op,$ops_sec,$dur,$avg,$std,$cv,$p50,$p95,$p99,$min,$max,$rss,$vms,$dr,$dw,$cu,$cs,$cp,$db,$wa,$ra,$sa,$workload,$pattern,$ops,$threads,$batch,$key_size,$value_size" >> "$CSV_OUTPUT"
-        done
-        rm -f "$temp_csv"
-    fi
-}
-
-# Run a single benchmark with proper isolation
-# Args -- test_name, run_number, phase, engine, workload, pattern, ops, threads, batch, key_size, value_size, extra_args
-run_isolated_benchmark() {
-    local test_name="$1"
-    local run_number="$2"
-    local phase="$3"
-    local engine="$4"
-    local workload="$5"
-    local pattern="$6"
-    local ops="$7"
-    local threads="$8"
-    local batch="$9"
-    local key_size="${10}"
-    local value_size="${11}"
-    shift 11
+run_benchmark() {
+    local engine="$1"
+    local workload="$2"
+    local pattern="$3"
+    local ops="$4"
+    local threads="$5"
+    local batch="$6"
+    local key_size="$7"
+    local value_size="$8"
+    shift 8
     local extra_args="$@"
-    
-    local temp_csv=$(mktemp)
     
     $BENCH -e "$engine" \
         -w "$workload" \
@@ -132,15 +99,10 @@ run_isolated_benchmark() {
         -v "$value_size" \
         $SYNC_FLAG \
         -d "$DB_PATH" \
-        --csv "$temp_csv" \
+        --csv "$CSV_OUTPUT" \
         $extra_args 2>&1 | tee -a "$RESULTS_TXT"
-    
-    append_csv "$test_name" "$run_number" "$phase" "$temp_csv" "$workload" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
 }
 
-
-# Standard write benchmark with warm-up and multiple runs
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_write() {
     local test_name="$1"
     local pattern="$2"
@@ -166,22 +128,18 @@ benchmark_write() {
             cleanup_db
             drop_caches
             
-            # Warm-up phase (not measured, smaller dataset)
             log "    Warm-up phase..."
             $BENCH -e "$engine" -w write -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             cleanup_db
             
-            # Measurement phase
             log "    Measurement phase..."
-            run_isolated_benchmark "$test_name" "$run" "measurement" "$engine" "write" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "write" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Read benchmark with proper data population and cache states
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_read() {
     local test_name="$1"
     local pattern="$2"
@@ -210,21 +168,17 @@ benchmark_read() {
             log "    Populating database..."
             $BENCH -e "$engine" -w write -p "$pattern" -o "$ops" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Warm cache read (not measured)
             log "    Cache warm-up..."
-            $BENCH -e "$engine" -w read -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
+            $BENCH -e "$engine" -w read -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Measurement phase (warm cache)
             log "    Measurement (warm cache)..."
-            run_isolated_benchmark "$test_name" "$run" "warm_cache" "$engine" "read" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "read" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Cold-start read benchmark (drop caches, measure cold read performance)
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_cold_read() {
     local test_name="$1"
     local pattern="$2"
@@ -256,17 +210,14 @@ benchmark_cold_read() {
             drop_caches
             sleep 2
             
-            # Measurement phase (cold cache)
             log "    Measurement (cold cache)..."
-            run_isolated_benchmark "$test_name" "$run" "cold_cache" "$engine" "read" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "read" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Overwrite benchmark (update existing keys)
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_overwrite() {
     local test_name="$1"
     local pattern="$2"
@@ -295,17 +246,14 @@ benchmark_overwrite() {
             log "    Initial population..."
             $BENCH -e "$engine" -w write -p seq -o "$ops" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Overwrite phase (write same keys again with sequential pattern)
             log "    Overwrite measurement..."
-            run_isolated_benchmark "$test_name" "$run" "overwrite" "$engine" "write" "seq" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "write" "seq" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Mixed workload with different read/write ratios
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_mixed() {
     local test_name="$1"
     local pattern="$2"
@@ -335,17 +283,14 @@ benchmark_mixed() {
             $BENCH -e "$engine" -w mixed -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             cleanup_db
             
-            # Measurement
             log "    Measurement..."
-            run_isolated_benchmark "$test_name" "$run" "measurement" "$engine" "mixed" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "mixed" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Seek benchmark
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_seek() {
     local test_name="$1"
     local pattern="$2"
@@ -375,19 +320,16 @@ benchmark_seek() {
             $BENCH -e "$engine" -w write -p "$pattern" -o "$ops" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
             log "    Seek warm-up..."
-            $BENCH -e "$engine" -w seek -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
+            $BENCH -e "$engine" -w seek -p "$pattern" -o "$WARMUP_OPS" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Measurement
             log "    Measurement..."
-            run_isolated_benchmark "$test_name" "$run" "measurement" "$engine" "seek" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "seek" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Range scan benchmark
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size, range_size
 benchmark_range() {
     local test_name="$1"
     local pattern="$2"
@@ -418,17 +360,14 @@ benchmark_range() {
             log "    Populating ($pop_ops keys)..."
             $BENCH -e "$engine" -w write -p seq -o "$pop_ops" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Measurement
             log "    Measurement..."
-            run_isolated_benchmark "$test_name" "$run" "measurement" "$engine" "range" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size" "--range-size $range_size"
+            run_benchmark "$engine" "range" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size" "--range-size $range_size"
             
             cleanup_db
         done
     done
 }
 
-# Delete benchmark
-# Args -- test_name, pattern, ops, threads, batch, key_size, value_size
 benchmark_delete() {
     local test_name="$1"
     local pattern="$2"
@@ -459,15 +398,13 @@ benchmark_delete() {
             
             # Measurement
             log "    Delete measurement..."
-            run_isolated_benchmark "$test_name" "$run" "measurement" "$engine" "delete" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "delete" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
             cleanup_db
         done
     done
 }
 
-# Fill-then-scan benchmark (write N keys, then full iteration)
-# Args -- test_name, ops, threads, batch, key_size, value_size
 benchmark_fill_scan() {
     local test_name="$1"
     local ops="$2"
@@ -492,12 +429,12 @@ benchmark_fill_scan() {
             cleanup_db
             drop_caches
             
-            # Fill phase (measured)
             log "    Fill phase..."
-            run_isolated_benchmark "$test_name" "$run" "fill" "$engine" "write" "seq" "$ops" "$threads" "$batch" "$key_size" "$value_size"
+            run_benchmark "$engine" "write" "seq" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
-            # Full scan (iteration is automatic in benchmark output)
-            log "    Scan complete (see ITER in results)"
+            log "    Scan phase..."
+            local scan_ops=$((ops / 1000))  
+            run_benchmark "$engine" "range" "seq" "$scan_ops" "$threads" "$batch" "$key_size" "$value_size" "--range-size 1000"
             
             cleanup_db
         done
@@ -624,4 +561,4 @@ log "Text Results: $RESULTS_TXT"
 log "============================================================================="
 log ""
 log "To generate graphs, run:"
-log "  python3 visualize_scientific.py $CSV_OUTPUT"
+log "  python3 tidesdb_rocksdb.py $CSV_OUTPUT"

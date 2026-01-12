@@ -400,10 +400,28 @@ int main(int argc, char **argv)
 
     if (config.csv_file)
     {
-        FILE *csv_fp = fopen(config.csv_file, "w");
+        /* Check if CSV file is empty to determine if we need to write header */
+        int write_header = 0;
+        FILE *check_fp = fopen(config.csv_file, "r");
+        if (check_fp)
+        {
+            fseek(check_fp, 0, SEEK_END);
+            if (ftell(check_fp) == 0)
+            {
+                write_header = 1;
+            }
+            fclose(check_fp);
+        }
+        else
+        {
+            /* File doesn't exist yet, we'll need to write header */
+            write_header = 1;
+        }
+
+        FILE *csv_fp = fopen(config.csv_file, "a");
         if (csv_fp)
         {
-            generate_csv(csv_fp, results, baseline_results);
+            generate_csv(csv_fp, results, baseline_results, write_header);
             fclose(csv_fp);
             printf("CSV exported to: %s\n", config.csv_file);
         }

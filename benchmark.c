@@ -1540,17 +1540,21 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
     }
 }
 
-void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline)
+void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline, int write_header)
 {
     const char *engine = results->engine_name;
     const char *baseline_engine = baseline ? baseline->engine_name : NULL;
 
-    fprintf(fp,
-            "engine,operation,ops_per_sec,duration_sec,avg_latency_us,stddev_us,cv_percent,"
-            "p50_us,p95_us,p99_us,min_us,max_us,"
-            "peak_rss_mb,peak_vms_mb,disk_read_mb,disk_write_mb,"
-            "cpu_user_sec,cpu_sys_sec,cpu_percent,db_size_mb,"
-            "write_amp,read_amp,space_amp\n");
+    /* Write CSV header only if file is empty/new */
+    if (write_header)
+    {
+        fprintf(fp,
+                "engine,operation,ops_per_sec,duration_sec,avg_latency_us,stddev_us,cv_percent,"
+                "p50_us,p95_us,p99_us,min_us,max_us,"
+                "peak_rss_mb,peak_vms_mb,disk_read_mb,disk_write_mb,"
+                "cpu_user_sec,cpu_sys_sec,cpu_percent,db_size_mb,"
+                "write_amp,read_amp,space_amp\n");
+    }
 
     if (results->put_stats.ops_per_second > 0)
     {
