@@ -400,7 +400,7 @@ int main(int argc, char **argv)
 
     if (config.csv_file)
     {
-        /* Check if CSV file is empty to determine if we need to write header */
+        /* We Check if CSV file is empty to determine if we need to write header */
         int write_header = 0;
         FILE *check_fp = fopen(config.csv_file, "r");
         if (check_fp)
@@ -414,7 +414,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            /* File doesn't exist yet, we'll need to write header */
+            /* The file doesn't exist yet, we'll need to write header */
             write_header = 1;
         }
 
