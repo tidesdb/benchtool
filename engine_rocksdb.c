@@ -77,8 +77,8 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path,
         rocksdb_block_based_options_set_filter_policy(handle->table_options, handle->filter_policy);
 
         /* pin L0 index and filter blocks in cache for faster access */
-        rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(handle->table_options,
-                                                                                1);
+        rocksdb_block_based_options_set_pin_l0_filter_and_index_blocks_in_cache(
+            handle->table_options, 1);
     }
     else
     {
