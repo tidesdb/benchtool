@@ -25,6 +25,11 @@
 
 static void print_usage(const char *prog)
 {
+    if (prog == NULL)
+    {
+        return;
+    }
+
     printf("TidesDB Storage Engine Benchmarker\n\n");
     printf("Usage: %s [OPTIONS]\n\n", prog);
     printf("Options:\n");
