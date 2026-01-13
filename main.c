@@ -414,7 +414,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            /* File doesn't exist yet, we'll need to write header */
+            /* The file doesn't exist yet, we'll need to write header */
             write_header = 1;
         }
 
