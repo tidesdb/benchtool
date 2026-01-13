@@ -1540,7 +1540,8 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
     }
 }
 
-void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline, int write_header)
+void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline,
+                  int write_header)
 {
     const char *engine = results->engine_name;
     const char *baseline_engine = baseline ? baseline->engine_name : NULL;

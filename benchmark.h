@@ -184,7 +184,8 @@ struct storage_engine_t
 
 int run_benchmark(benchmark_config_t *config, benchmark_results_t **results);
 void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline);
-void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline, int write_header);
+void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline,
+                  int write_header);
 void free_results(benchmark_results_t *results);
 
 const storage_engine_ops_t *get_engine_ops(const char *engine_name);
