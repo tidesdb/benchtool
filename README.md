@@ -36,6 +36,7 @@ Options:
   --sync                         Enable fsync for durable writes (slower)
   --memtable-size <bytes>        Engine write-buffer / memtable size (0 = engine default)
   --block-cache-size <bytes>     Block cache size (0 = engine default)
+  --test-name <name>             Tag results with a test name in CSV output
   --rocksdb-blobdb / --no-rocksdb-blobdb  Force-enable/disable RocksDB BlobDB
   --bloom-filters / --no-bloom-filters    Force-enable/disable bloom filters
   --block-indexes / --no-block-indexes    Force-enable/disable block indexes
@@ -53,13 +54,25 @@ Options:
 ## Runners
 The benchtool has default runners such as
 
-- `large_value_benchmark.sh` - runs 8kb value size benchmark comparisons against RocksDB+
-- `large_value_benchmark_1gb.sh` - runs 1gb value size benchmark comparisons against RocksDB+
-- `tidesdb_rocksdb.sh` - is the main benchtool suite runner
-- `tidesdb_rocksdb_synced.sh` - synced (durable) write benchmark suite with fsync enabled
-- `tidesdb_rocksdb_single_threaded.sh` - single threaded benchmark suite
-- `tidesdb_rocksdb_no_bloom_indexes.sh` - benchmark suite with bloom filters and block indexes disabled
-- `tidesdb_rocksdb_extensive.sh` - extensive benchmark suite with multiple configurations
+- `large_value_benchmark.sh` - 8KB value suite (PUT/GET/SEEK/RANGE) with both engines
+- `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines
+- `tidesdb_rocksdb.sh` - main mixed workload comparison suite
+- `tidesdb_rocksdb_synced.sh` - synced (durable) write suite with reduced ops for practicality
+- `tidesdb_rocksdb_single_threaded.sh` - single-threaded comparison suite
+- `tidesdb_rocksdb_no_bloom_indexes.sh` - comparison suite with bloom filters and block indexes disabled
+- `tidesdb_rocksdb_extensive.sh` - extensive multi-run suite with warm/cold, scaling, and sweeps
+- `tidesdb_rocksdb_one_billion.sh` - 1B key write/read/seek/range + 500M delete, 8 threads, memtable 128MB, cache 8GB
+
+## Graphs
+Generate image-only graphs from any benchtool CSV with `graphgen.py`:
+
+```bash
+python3 graphgen.py <csv_file> [output_dir]
+```
+
+Notes:
+- CSV includes `test_name` (from `--test-name`) to uniquely identify each run, including populate steps tagged with `_populate`.
+- Graphgen adapts to any CSV by checking available columns; it outputs throughput, latency averages + percentiles, variability (CV%) + stddev, resource usage (CPU/IO/memory/duration), amplification, and parameter sweep plots when the data exists.
 
 
 ## Usage Examples

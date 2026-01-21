@@ -2,24 +2,18 @@
 
 set -e 
 
-######################################################################################
-#
-# TidesDB vs RocksDB Comprehensive Benchmark Extensive Suite
-#
-######################################################################################
-
 BENCH="./build/benchtool"
-DB_PATH="db-bench"
-RESULTS_DIR="benchmark_results"
+DB_PATH="${BENCHTOOL_DB_PATH:-db-bench}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-CSV_OUTPUT="${RESULTS_DIR}/scientific_${TIMESTAMP}.csv"
-RESULTS_TXT="${RESULTS_DIR}/scientific_${TIMESTAMP}.txt"
+CSV_OUTPUT="tidesdb_rocksdb_extensive_benchmark_results_${TIMESTAMP}.csv"
+RESULTS_TXT="tidesdb_rocksdb_extensive_benchmark_results_${TIMESTAMP}.txt"
 
 SYNC_ENABLED="false"
 DEFAULT_BATCH_SIZE=1000
 DEFAULT_THREADS=8
 NUM_RUNS=3  
 WARMUP_OPS=100000 
+CURRENT_TEST_NAME=""
 
 if [ "$SYNC_ENABLED" = "true" ]; then
     SYNC_FLAG="--sync"
@@ -39,31 +33,37 @@ mkdir -p "$RESULTS_DIR"
 
 > "$CSV_OUTPUT"
 
+FS_TYPE=$(df -T "$DB_PATH" 2>/dev/null | awk 'NR==2 {print $2}')
+FS_TYPE=${FS_TYPE:-unknown}
+
 log() {
     echo "$1" | tee -a "$RESULTS_TXT"
 }
 
-log "============================================================================="
-log "TidesDB vs RocksDB Scientific Benchmark Suite"
-log "============================================================================="
+log "*------------------------------------------*"
+log "RUNNER: TidesDB vs RocksDB (Extensive)"
 log "Date: $(date)"
-log "Hostname: $(hostname)"
-log "Kernel: $(uname -r)"
-log "CPU: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)"
-log "CPU Cores: $(nproc)"
-log "Memory: $(free -h | grep Mem | awk '{print $2}')"
 log "Sync Mode: $SYNC_MODE"
-log "Runs per test: $NUM_RUNS"
-log "Warm-up operations: $WARMUP_OPS"
-log "CSV Output: $CSV_OUTPUT"
-log "============================================================================="
+log "Parameters:"
+log "  Runs per test: $NUM_RUNS"
+log "  Warm-up operations: $WARMUP_OPS"
+log "Environment:"
+log "  Hostname: $(hostname)"
+log "  Kernel: $(uname -r)"
+log "  Filesystem: $FS_TYPE"
+log "  CPU: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)"
+log "  CPU Cores: $(nproc)"
+log "  Memory: $(free -h | grep Mem | awk '{print $2}')"
+log "Results:"
+log "  Text: $RESULTS_TXT"
+log "  CSV:  $CSV_OUTPUT"
+log "*------------------------------------------*"
 log ""
 
 cleanup_db() {
     if [ -d "$DB_PATH" ]; then
         rm -rf "$DB_PATH"
     fi
-    # Sync filesystem
     sync
 }
 
@@ -99,6 +99,7 @@ run_benchmark() {
         -v "$value_size" \
         $SYNC_FLAG \
         -d "$DB_PATH" \
+        --test-name "$CURRENT_TEST_NAME" \
         --csv "$CSV_OUTPUT" \
         $extra_args 2>&1 | tee -a "$RESULTS_TXT"
 }
@@ -113,11 +114,13 @@ benchmark_write() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Write Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads, Batch: $batch"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -150,11 +153,13 @@ benchmark_read() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Read Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -189,11 +194,13 @@ benchmark_cold_read() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Cold-Start Read Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -228,11 +235,13 @@ benchmark_overwrite() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Overwrite Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -264,11 +273,13 @@ benchmark_mixed() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Mixed Workload)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -301,11 +312,13 @@ benchmark_seek() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Seek Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -341,11 +354,13 @@ benchmark_range() {
     local range_size="$8"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Range Scan Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Range Size: $range_size"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -378,11 +393,13 @@ benchmark_delete() {
     local value_size="$7"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Delete Benchmark)"
     log "Pattern: $pattern, Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -396,7 +413,6 @@ benchmark_delete() {
             log "    Populating..."
             $BENCH -e "$engine" -w write -p "$pattern" -o "$ops" -t "$threads" -b "$batch" -k "$key_size" -v "$value_size" $SYNC_FLAG -d "$DB_PATH" > /dev/null 2>&1
             
-            # Measurement
             log "    Delete measurement..."
             run_benchmark "$engine" "delete" "$pattern" "$ops" "$threads" "$batch" "$key_size" "$value_size"
             
@@ -414,11 +430,13 @@ benchmark_fill_scan() {
     local value_size="$6"
     
     log ""
-    log "========================================================================"
+    log "*------------------------------------------*"
     log "TEST: $test_name (Fill-then-Scan Benchmark)"
     log "Ops: $ops, Threads: $threads"
-    log "========================================================================"
+    log "*------------------------------------------*"
     
+    CURRENT_TEST_NAME="$test_name"
+
     for engine in tidesdb rocksdb; do
         log ""
         log "--- Engine: $engine ---"
@@ -442,81 +460,61 @@ benchmark_fill_scan() {
 }
 
 log ""
-log "############################################################################"
-log "# SECTION 1 - WRITE PERFORMANCE"
-log "############################################################################"
+log "### 1. Write Performance ###"
 
 benchmark_write "write_seq_5M" "seq" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_write "write_random_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_write "write_zipfian_5M" "zipfian" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 2 - READ PERFORMANCE (WARM CACHE)"
-log "############################################################################"
+log "### 2. Read Performance (Warm Cache) ###"
 
 benchmark_read "read_random_warm_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_read "read_seq_warm_5M" "seq" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_read "read_zipfian_warm_5M" "zipfian" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 3 - READ PERFORMANCE (COLD CACHE)"
-log "############################################################################"
+log "### 3. Read Performance (Cold Cache) ###"
 
 benchmark_cold_read "read_random_cold_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_cold_read "read_seq_cold_5M" "seq" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 4 - OVERWRITE PERFORMANCE"
-log "############################################################################"
+log "### 4. Overwrite Performance ###"
 
 benchmark_overwrite "overwrite_5M" "seq" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 5 - MIXED WORKLOADS"
-log "############################################################################"
+log "### 5. Mixed Workloads ###"
 
 benchmark_mixed "mixed_random_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_mixed "mixed_zipfian_5M" "zipfian" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 6 - SEEK PERFORMANCE"
-log "############################################################################"
+log "### 6. Seek Performance ###"
 
 benchmark_seek "seek_random_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 benchmark_seek "seek_seq_5M" "seq" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 7 - RANGE SCAN PERFORMANCE"
-log "############################################################################"
+log "### 7. Range Scan Performance ###"
 
 benchmark_range "range_10" "random" 500000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100 10
 benchmark_range "range_100" "random" 500000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100 100
 benchmark_range "range_1000" "random" 200000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100 1000
 
 log ""
-log "############################################################################"
-log "# SECTION 8 - DELETE PERFORMANCE"
-log "############################################################################"
+log "### 8. Delete Performance ###"
 
 benchmark_delete "delete_random_5M" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 9 - FILL-THEN-SCAN"
-log "############################################################################"
+log "### 9. Fill-Then-Scan ###"
 
 benchmark_fill_scan "fill_scan_10M" 10000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 100
 
 log ""
-log "############################################################################"
-log "# SECTION 10 - VALUE SIZE IMPACT"
-log "############################################################################"
+log "### 10. Value Size Impact ###"
 
 benchmark_write "write_small_value" "random" 10000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 64
 benchmark_write "write_medium_value" "random" 2000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 16 1024
@@ -524,27 +522,21 @@ benchmark_write "write_large_value" "random" 500000 $DEFAULT_THREADS $DEFAULT_BA
 benchmark_write "write_xlarge_value" "random" 100000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 256 16384
 
 log ""
-log "############################################################################"
-log "# SECTION 11 - BATCH SIZE SCALING"
-log "############################################################################"
+log "### 11. Batch Size Scaling ###"
 
 for batch in 1 10 100 1000 10000; do
     benchmark_write "batch_${batch}" "random" 2000000 $DEFAULT_THREADS $batch 16 100
 done
 
 log ""
-log "############################################################################"
-log "# SECTION 12 - THREAD SCALING"
-log "############################################################################"
+log "### 12. Thread Scaling ###"
 
 for threads in 1 2 4 8 16; do
     benchmark_write "threads_${threads}" "random" 2000000 $threads $DEFAULT_BATCH_SIZE 16 100
 done
 
 log ""
-log "############################################################################"
-log "# SECTION 13 - KEY SIZE IMPACT"
-log "############################################################################"
+log "### 13. Key Size Impact ###"
 
 benchmark_write "key_8B" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 8 100
 benchmark_write "key_32B" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE 32 100
@@ -554,11 +546,9 @@ benchmark_write "key_128B" "random" 5000000 $DEFAULT_THREADS $DEFAULT_BATCH_SIZE
 cleanup_db
 
 log ""
-log "============================================================================="
-log "Benchmark Suite Complete!"
-log "CSV Results: $CSV_OUTPUT"
-log "Text Results: $RESULTS_TXT"
-log "============================================================================="
-log ""
-log "To generate graphs, run:"
-log "  python3 tidesdb_rocksdb.py $CSV_OUTPUT"
+log "*------------------------------------------*"
+log "RUNNER Complete"
+log "Results:"
+log "  Text: $RESULTS_TXT"
+log "  CSV:  $CSV_OUTPUT"
+log "*------------------------------------------*"

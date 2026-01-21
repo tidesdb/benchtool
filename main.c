@@ -45,6 +45,7 @@ static void print_usage(const char *prog)
     printf("  -c, --compare             Compare against RocksDB baseline\n");
     printf("  -r, --report <file>       Output report to file (default: stdout)\n");
     printf("  --csv <file>              Export results to CSV file for graphing\n");
+    printf("  --test-name <name>        Tag results with a test name in CSV output\n");
     printf("  -s, --sequential          Use sequential keys instead of random\n");
     printf(
         "  -p, --pattern <type>      Key pattern: seq, random, zipfian, "
@@ -93,6 +94,7 @@ int main(int argc, char **argv)
                                  .compare_mode = 0,
                                  .report_file = NULL,
                                  .csv_file = NULL,
+                                 .test_name = NULL,
                                  .key_pattern = KEY_PATTERN_RANDOM,
                                  .workload_type = WORKLOAD_MIXED,
                                  .sync_enabled = 0,
@@ -113,7 +115,8 @@ int main(int argc, char **argv)
 
     enum
     {
-        OPT_BLOOM_FPR = 1000,
+        OPT_TEST_NAME = 1000,
+        OPT_BLOOM_FPR,
         OPT_L0_QUEUE_STALL_THRESHOLD,
         OPT_L1_FILE_COUNT_TRIGGER,
         OPT_DIVIDING_LEVEL_OFFSET,
@@ -134,6 +137,7 @@ int main(int argc, char **argv)
         {"compare", no_argument, 0, 'c'},
         {"report", required_argument, 0, 'r'},
         {"csv", required_argument, 0, 'X'},
+        {"test-name", required_argument, 0, OPT_TEST_NAME},
         {"pattern", required_argument, 0, 'p'},
         {"workload", required_argument, 0, 'w'},
         {"sync", no_argument, 0, 'S'},
@@ -197,6 +201,9 @@ int main(int argc, char **argv)
                 break;
             case 'X':
                 config.csv_file = optarg;
+                break;
+            case OPT_TEST_NAME:
+                config.test_name = optarg;
                 break;
             case 'p':
                 if (strcmp(optarg, "seq") == 0 || strcmp(optarg, "sequential") == 0)
@@ -315,6 +322,10 @@ int main(int argc, char **argv)
     printf("  Value Size: %d bytes\n", config.value_size);
     printf("  Threads: %d\n", config.num_threads);
     printf("  Batch Size: %d\n", config.batch_size);
+    if (config.test_name)
+    {
+        printf("  Test Name: %s\n", config.test_name);
+    }
     const char *pattern_name;
     switch (config.key_pattern)
     {
