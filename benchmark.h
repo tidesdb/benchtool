@@ -59,6 +59,7 @@ typedef struct
     int compare_mode;
     const char *report_file;
     const char *csv_file;
+    const char *test_name;
     key_pattern_t key_pattern;
     workload_type_t workload_type;
     int sync_enabled;

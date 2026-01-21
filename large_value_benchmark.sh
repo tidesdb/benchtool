@@ -1,19 +1,18 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e
 
 BENCH="./build/benchtool"
-DB_PATH="db-bench"
-RESULTS="large_value_benchmark_results.txt"
+DB_PATH="${BENCHTOOL_DB_PATH:-db-bench}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RESULTS="tidesdb_rocksdb_large_value_benchmark_results_${TIMESTAMP}.txt"
+CSV_FILE="tidesdb_rocksdb_large_value_benchmark_results_${TIMESTAMP}.csv"
 
-# Set to "true" to enable fsync-fdatasync (durability), "false" for maximum performance
 SYNC_ENABLED="false"
-
 VALUE_SIZE=8192
 KEY_SIZE=16
-
-OPS_COUNT=100000  
-THREADS=2 
+OPS_COUNT=100000
+THREADS=2
 
 if [ "$SYNC_ENABLED" = "true" ]; then
     SYNC_FLAG="--sync"
@@ -23,189 +22,196 @@ else
     SYNC_MODE="DISABLED (maximum performance)"
 fi
 
-# Validate benchtool exists
 if [ ! -f "$BENCH" ]; then
     echo "Error: benchtool not found at $BENCH"
     echo "Please build first: mkdir -p build && cd build && cmake .. && make"
     exit 1
 fi
 
-# Initialize results file
 > "$RESULTS"
+> "$CSV_FILE"
 
-echo "===================================" | tee -a "$RESULTS"
-echo "Large Value (8KB) Benchmark" | tee -a "$RESULTS"
-echo "TidesDB vs RocksDB Comparison" | tee -a "$RESULTS"
-echo "Date: $(date)" | tee -a "$RESULTS"
-echo "Sync Mode: $SYNC_MODE" | tee -a "$RESULTS"
-echo "Value Size: 8KB ($VALUE_SIZE bytes)" | tee -a "$RESULTS"
-echo "Key Size: $KEY_SIZE bytes" | tee -a "$RESULTS"
-echo "Operations: $OPS_COUNT" | tee -a "$RESULTS"
-echo "Threads: $THREADS" | tee -a "$RESULTS"
-echo "===================================" | tee -a "$RESULTS"
-echo "" | tee -a "$RESULTS"
+log() {
+    echo "$1" | tee -a "$RESULTS"
+}
 
-# Cleanup function to ensure DB is removed
+FS_TYPE=$(df -T "$DB_PATH" 2>/dev/null | awk 'NR==2 {print $2}')
+FS_TYPE=${FS_TYPE:-unknown}
+
+log "*------------------------------------------*"
+log "RUNNER: Large Value (8KB)"
+log "Date: $(date)"
+log "Sync Mode: $SYNC_MODE"
+log "Parameters:"
+log "  Value Size: 8KB ($VALUE_SIZE bytes)"
+log "  Key Size: $KEY_SIZE bytes"
+log "  Operations: $OPS_COUNT"
+log "  Threads: $THREADS"
+log "Environment:"
+log "  Hostname: $(hostname)"
+log "  Kernel: $(uname -r)"
+log "  Filesystem: $FS_TYPE"
+log "  CPU: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)"
+log "  CPU Cores: $(nproc)"
+log "  Memory: $(free -h | grep Mem | awk '{print $2}')"
+log "Results:"
+log "  Text: $RESULTS"
+log "  CSV:  $CSV_FILE"
+log "*------------------------------------------*"
+log ""
+
 cleanup_db() {
     if [ -d "$DB_PATH" ]; then
-        echo "Cleaning up $DB_PATH..." | tee -a "$RESULTS"
         rm -rf "$DB_PATH"
         if [ -d "$DB_PATH" ]; then
-            echo "Warning: Failed to remove $DB_PATH" | tee -a "$RESULTS"
+            log "Warning: Failed to remove $DB_PATH"
             return 1
         fi
     fi
+    sync
     return 0
 }
 
-# Run PUT benchmark
 run_put_test() {
-    local test_name="$1"
-    local pattern="$2"
+    local test_id="$1"
+    local test_name="$2"
+    local pattern="$3"
     
-    echo "" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    echo "TEST: $test_name" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    
-    # TidesDB
-    cleanup_db || exit 1
-    echo "Running TidesDB PUT ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    # RocksDB
-    cleanup_db || exit 1
-    echo "Running RocksDB PUT ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    log ""
+    log "*------------------------------------------*"
+    log "TEST: $test_name"
+    log "*------------------------------------------*"
     
     cleanup_db || exit 1
-    echo "" | tee -a "$RESULTS"
+    log "Running TidesDB PUT ($pattern)..."
+    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log "Running RocksDB PUT ($pattern)..."
+    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log ""
 }
 
-# Run GET benchmark (requires pre-populating data)
 run_get_test() {
-    local test_name="$1"
-    local pattern="$2"
+    local test_id="$1"
+    local test_name="$2"
+    local pattern="$3"
+    local populate_test_id="${test_id}_populate"
     
-    echo "" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    echo "TEST: $test_name" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    
-    # TidesDB
-    cleanup_db || exit 1
-    echo "Populating TidesDB for GET test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running TidesDB GET ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w read -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    # RocksDB
-    cleanup_db || exit 1
-    echo "Populating RocksDB for GET test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running RocksDB GET ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w read -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    log ""
+    log "*------------------------------------------*"
+    log "TEST: $test_name"
+    log "*------------------------------------------*"
     
     cleanup_db || exit 1
-    echo "" | tee -a "$RESULTS"
+    log "Populating TidesDB for GET test ($pattern)..."
+    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running TidesDB GET ($pattern)..."
+    $BENCH -e tidesdb -w read -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log "Populating RocksDB for GET test ($pattern)..."
+    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running RocksDB GET ($pattern)..."
+    $BENCH -e rocksdb -w read -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log ""
 }
 
-# Run SEEK benchmark (requires pre-populating data)
 run_seek_test() {
-    local test_name="$1"
-    local pattern="$2"
+    local test_id="$1"
+    local test_name="$2"
+    local pattern="$3"
+    local populate_test_id="${test_id}_populate"
     
-    echo "" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    echo "TEST: $test_name" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    
-    # TidesDB - use same pattern for write and seek so keys exist!
-    cleanup_db || exit 1
-    echo "Populating TidesDB for SEEK test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running TidesDB SEEK ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w seek -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    # RocksDB - use same pattern for write and seek so keys exist!
-    cleanup_db || exit 1
-    echo "Populating RocksDB for SEEK test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running RocksDB SEEK ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w seek -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    log ""
+    log "*------------------------------------------*"
+    log "TEST: $test_name"
+    log "*------------------------------------------*"
     
     cleanup_db || exit 1
-    echo "" | tee -a "$RESULTS"
+    log "Populating TidesDB for SEEK test ($pattern)..."
+    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running TidesDB SEEK ($pattern)..."
+    $BENCH -e tidesdb -w seek -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+
+    cleanup_db || exit 1
+    log "Populating RocksDB for SEEK test ($pattern)..."
+    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running RocksDB SEEK ($pattern)..."
+    $BENCH -e rocksdb -w seek -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log ""
 }
 
-# Run RANGE/ITERATION benchmark (requires pre-populating data)
 run_iteration_test() {
-    local test_name="$1"
-    local pattern="$2"
-    local range_size="$3"
+    local test_id="$1"
+    local test_name="$2"
+    local pattern="$3"
+    local range_size="$4"
+    local populate_test_id="${test_id}_populate"
     
-    echo "" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    echo "TEST: $test_name" | tee -a "$RESULTS"
-    echo "========================================" | tee -a "$RESULTS"
-    
-    # TidesDB - use same pattern for write and range so keys exist!
-    cleanup_db || exit 1
-    echo "Populating TidesDB for ITERATION test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running TidesDB ITERATION ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e tidesdb -w range -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS --range-size $range_size $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    # RocksDB - use same pattern for write and range so keys exist!
-    cleanup_db || exit 1
-    echo "Populating RocksDB for ITERATION test ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
-    
-    echo "Running RocksDB ITERATION ($pattern)..." | tee -a "$RESULTS"
-    $BENCH -e rocksdb -w range -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS --range-size $range_size $SYNC_FLAG -d "$DB_PATH" 2>&1 | tee -a "$RESULTS"
+    log ""
+    log "*------------------------------------------*"
+    log "TEST: $test_name"
+    log "*------------------------------------------*"
     
     cleanup_db || exit 1
-    echo "" | tee -a "$RESULTS"
+    log "Populating TidesDB for ITERATION test ($pattern)..."
+    $BENCH -e tidesdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running TidesDB ITERATION ($pattern)..."
+    $BENCH -e tidesdb -w range -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS --range-size $range_size $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log "Populating RocksDB for ITERATION test ($pattern)..."
+    $BENCH -e rocksdb -w write -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    log "Running RocksDB ITERATION ($pattern)..."
+    $BENCH -e rocksdb -w range -p $pattern -k $KEY_SIZE -v $VALUE_SIZE -o $OPS_COUNT -t $THREADS --range-size $range_size $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    
+    cleanup_db || exit 1
+    log ""
 }
 
-# ============================================
-# Large Value Benchmark Suite
-# ============================================
+log "### 1. PUT Performance - Sequential ###"
+run_put_test "large_value_8kb_put_seq" "8KB PUT - Sequential" "seq"
 
-echo "### 1. PUT Performance - Sequential ###" | tee -a "$RESULTS"
-run_put_test "8KB PUT - Sequential" "seq"
+log "### 2. PUT Performance - Random ###"
+run_put_test "large_value_8kb_put_random" "8KB PUT - Random" "random"
 
-echo "### 2. PUT Performance - Random ###" | tee -a "$RESULTS"
-run_put_test "8KB PUT - Random" "random"
+log "### 3. GET Performance - Sequential ###"
+run_get_test "large_value_8kb_get_seq" "8KB GET - Sequential" "seq"
 
-echo "### 3. GET Performance - Sequential ###" | tee -a "$RESULTS"
-run_get_test "8KB GET - Sequential" "seq"
+log "### 4. GET Performance - Random ###"
+run_get_test "large_value_8kb_get_random" "8KB GET - Random" "random"
 
-echo "### 4. GET Performance - Random ###" | tee -a "$RESULTS"
-run_get_test "8KB GET - Random" "random"
+log "### 5. SEEK Performance - Sequential ###"
+run_seek_test "large_value_8kb_seek_seq" "8KB SEEK - Sequential" "seq"
 
-echo "### 5. SEEK Performance - Sequential ###" | tee -a "$RESULTS"
-run_seek_test "8KB SEEK - Sequential" "seq"
+log "### 6. SEEK Performance - Random ###"
+run_seek_test "large_value_8kb_seek_random" "8KB SEEK - Random" "random"
 
-echo "### 6. SEEK Performance - Random ###" | tee -a "$RESULTS"
-run_seek_test "8KB SEEK - Random" "random"
+log "### 7. ITERATION Performance - Sequential (100 keys per range) ###"
+run_iteration_test "large_value_8kb_range_seq_100" "8KB ITERATION - Sequential" "seq" 100
 
-echo "### 7. ITERATION Performance - Sequential (100 keys per range) ###" | tee -a "$RESULTS"
-run_iteration_test "8KB ITERATION - Sequential" "seq" 100
+log "### 8. ITERATION Performance - Random (100 keys per range) ###"
+run_iteration_test "large_value_8kb_range_random_100" "8KB ITERATION - Random" "random" 100
 
-echo "### 8. ITERATION Performance - Random (100 keys per range) ###" | tee -a "$RESULTS"
-run_iteration_test "8KB ITERATION - Random" "random" 100
-
-# Final cleanup
 cleanup_db
 
-echo "" | tee -a "$RESULTS"
-echo "===================================" | tee -a "$RESULTS"
-echo "Large Value Benchmark Complete!" | tee -a "$RESULTS"
-echo "Results saved to: $RESULTS" | tee -a "$RESULTS"
-echo "===================================" | tee -a "$RESULTS"
+log ""
+log "*------------------------------------------*"
+log "RUNNER Complete"
+log "Results:"
+log "  Text: $RESULTS"
+log "  CSV:  $CSV_FILE"
+log "*------------------------------------------*"
