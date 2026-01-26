@@ -14,6 +14,30 @@ make
 cd ..
 ```
 
+### Build with Memory Allocators
+
+Benchtool supports engine-specific memory allocators. Since allocators override malloc/free globally, only one can be active at a time.
+
+**TidesDB (mimalloc only):**
+```bash
+# Build with mimalloc - must match TidesDB library build
+cmake .. -DTIDESDB_WITH_MIMALLOC=ON
+```
+
+**RocksDB (jemalloc or tcmalloc):**
+```bash
+# Build with jemalloc (commonly used with RocksDB)
+cmake .. -DROCKSDB_WITH_JEMALLOC=ON
+
+# Build with tcmalloc (Google's allocator from gperftools)
+cmake .. -DROCKSDB_WITH_TCMALLOC=ON
+```
+
+**Allocator Notes:**
+- **TidesDB** only supports **mimalloc**. Use `-DTIDESDB_WITH_MIMALLOC=ON` when TidesDB was built with `TIDESDB_WITH_MIMALLOC=ON`.
+- **RocksDB** commonly uses **jemalloc** or **tcmalloc** for improved multi-threaded performance.
+- Cannot combine TidesDB and RocksDB allocators (e.g., mimalloc + jemalloc) since they conflict at runtime.
+
 ## Command Line Options
 ```
 Usage: benchtool [OPTIONS]
