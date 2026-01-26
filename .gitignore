@@ -36,3 +36,4 @@ graphs
 tidesdb_rocksdb_*
 large_value_benchmark_*
 __pycache__
+engine_debug.log

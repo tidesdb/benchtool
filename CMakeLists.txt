@@ -4,8 +4,8 @@ project(benchtool C)
 set(CMAKE_C_STANDARD 11)
 
 # Sanitizer options
-option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
-option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+option(ENABLE_ASAN "Enable AddressSanitizer" ON)
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" ON)
 option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
 

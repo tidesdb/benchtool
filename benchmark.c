@@ -40,6 +40,40 @@ const char *get_engine_version(const char *engine_name)
     return "unknown";
 }
 
+static void append_debug_log(const char *db_path, const char *engine_name)
+{
+    char log_path[2048];
+    snprintf(log_path, sizeof(log_path), "%s/LOG", db_path);
+
+    FILE *src = fopen(log_path, "r");
+    if (!src) return; /* no LOG file exists */
+
+    FILE *dst = fopen("engine_debug.log", "a");
+    if (!dst)
+    {
+        fclose(src);
+        return;
+    }
+
+    /* write separator with timestamp and engine name */
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+    fprintf(dst, "\n========== %s [%s] %s ==========\n", engine_name, timestamp, db_path);
+
+    /* copy contents */
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), src)) > 0)
+    {
+        fwrite(buf, 1, n, dst);
+    }
+
+    fclose(src);
+    fclose(dst);
+}
+
 static double zipfian_next(int n, double theta)
 {
     static double alpha = 0.0;
@@ -1124,6 +1158,12 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
 
     /* close database to ensure all data is flushed and compacted */
     ops->close(engine);
+
+    /* append debug logs before database directory is cleaned up */
+    if (config->debug_logging)
+    {
+        append_debug_log(config->db_path, config->engine_name);
+    }
 
     /* get storage size after close for accurate space amplification */
     (*results)->resources.storage_size_bytes = get_directory_size(config->db_path);

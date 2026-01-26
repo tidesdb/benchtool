@@ -81,7 +81,7 @@ run_comparison() {
 
     cleanup_db || exit 1
     log "Running TidesDB (with RocksDB baseline)..."
-    $BENCH -e tidesdb -c $bench_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug -c $bench_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -104,17 +104,17 @@ run_read_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for read test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB read test..."
-    $BENCH -e tidesdb $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for read test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB read test..."
-    $BENCH -e rocksdb $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -135,17 +135,17 @@ run_delete_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for delete test..."
-    $BENCH -e tidesdb $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB delete test..."
-    $BENCH -e tidesdb $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for delete test..."
-    $BENCH -e rocksdb $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB delete test..."
-    $BENCH -e rocksdb $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -168,17 +168,17 @@ run_seek_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for seek test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB seek test..."
-    $BENCH -e tidesdb $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for seek test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB seek test..."
-    $BENCH -e rocksdb $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -201,17 +201,17 @@ run_range_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for range test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB range test..."
-    $BENCH -e tidesdb $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb --debug $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for range test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB range test..."
-    $BENCH -e rocksdb $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb --debug $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""

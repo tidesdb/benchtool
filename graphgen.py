@@ -488,6 +488,282 @@ def plot_engine_comparison(df: pd.DataFrame, out_dir: str) -> None:
     plt.close(fig)
 
 
+def plot_speedup_ratios(df: pd.DataFrame, out_dir: str) -> None:
+    """Plot speedup ratios between engines (tidesdb vs rocksdb)."""
+    if "engine" not in df.columns or "operation" not in df.columns:
+        return
+    
+    engines = df["engine"].unique().tolist()
+    if "tidesdb" not in engines or "rocksdb" not in engines:
+        return
+    
+    ops_order = ["PUT", "GET", "DELETE", "SEEK", "RANGE"]
+    available_ops = [op for op in ops_order if op in df["operation"].values]
+    if not available_ops:
+        return
+    
+    speedups = []
+    for op in available_ops:
+        tidesdb_ops = df[(df["engine"] == "tidesdb") & (df["operation"] == op)]["ops_per_sec"].mean()
+        rocksdb_ops = df[(df["engine"] == "rocksdb") & (df["operation"] == op)]["ops_per_sec"].mean()
+        if pd.notna(tidesdb_ops) and pd.notna(rocksdb_ops) and rocksdb_ops > 0:
+            speedups.append((op, tidesdb_ops / rocksdb_ops))
+    
+    if not speedups:
+        return
+    
+    ops, ratios = zip(*speedups)
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    colors = [PALETTE["tidesdb"] if r >= 1 else PALETTE["rocksdb"] for r in ratios]
+    bars = ax.bar(ops, ratios, color=colors, alpha=0.9, edgecolor="none")
+    
+    ax.axhline(1, color=PALETTE["accent"], linestyle="--", linewidth=1.5, label="Equal performance")
+    
+    for bar, ratio in zip(bars, ratios):
+        height = bar.get_height()
+        label = f"{ratio:.2f}x"
+        if ratio >= 1:
+            label = f"+{label}" if ratio > 1 else label
+        ax.annotate(
+            label,
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold",
+        )
+    
+    ax.set_xlabel("Operation")
+    ax.set_ylabel("Speedup Ratio (TidesDB / RocksDB)")
+    ax.set_title("TidesDB vs RocksDB Speedup")
+    ax.set_ylim(0, max(ratios) * 1.2)
+    
+    add_clean_background(fig)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "speedup_ratios.png"))
+    plt.close(fig)
+
+
+def plot_latency_vs_throughput(df: pd.DataFrame, out_dir: str) -> None:
+    """Scatter plot of latency vs throughput to show efficiency."""
+    if "avg_latency_us" not in df.columns or "ops_per_sec" not in df.columns:
+        return
+    
+    ops = [op for op in ["PUT", "GET", "DELETE", "SEEK", "RANGE"] if op in df["operation"].values]
+    if not ops:
+        return
+    
+    fig, ax = plt.subplots(figsize=(9, 6))
+    
+    markers = {"PUT": "o", "GET": "s", "DELETE": "^", "SEEK": "D", "RANGE": "v"}
+    
+    for engine in sorted(df["engine"].unique().tolist()):
+        for op in ops:
+            subset = df[(df["engine"] == engine) & (df["operation"] == op)]
+            if subset.empty:
+                continue
+            ax.scatter(
+                subset["ops_per_sec"],
+                subset["avg_latency_us"],
+                c=engine_color(engine),
+                marker=markers.get(op, "o"),
+                s=60,
+                alpha=0.7,
+                label=f"{engine.upper()} {op}",
+                edgecolors="white",
+                linewidths=0.5,
+            )
+    
+    ax.set_xlabel("Throughput (ops/sec)")
+    ax.set_ylabel("Average Latency (μs)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.xaxis.set_major_formatter(FuncFormatter(format_ops))
+    ax.set_title("Latency vs Throughput (lower-right is better)")
+    
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys(), loc="upper right", fontsize=7, ncol=2)
+    
+    add_clean_background(fig)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "latency_vs_throughput.png"))
+    plt.close(fig)
+
+
+def plot_per_test_comparison(df: pd.DataFrame, out_dir: str) -> None:
+    """Side-by-side comparison for each test_name with both engines."""
+    if "test_name" not in df.columns or "engine" not in df.columns:
+        return
+    
+    engines = df["engine"].unique().tolist()
+    if len(engines) < 2:
+        return
+    
+    ops = [op for op in ["PUT", "GET", "DELETE", "SEEK", "RANGE"] if op in df["operation"].values]
+    
+    for op in ops:
+        op_data = df[df["operation"] == op]
+        tests_with_both = (
+            op_data.groupby("test_name")["engine"]
+            .nunique()
+            .reset_index()
+        )
+        tests_with_both = tests_with_both[tests_with_both["engine"] >= 2]["test_name"].tolist()
+        
+        if len(tests_with_both) < 1:
+            continue
+        
+        tests_with_both = tests_with_both[:10]
+        
+        fig, ax = plt.subplots(figsize=(12, 5 + len(tests_with_both) * 0.3))
+        
+        stats = op_data[op_data["test_name"].isin(tests_with_both)].groupby(
+            ["test_name", "engine"]
+        )["ops_per_sec"].mean().reset_index()
+        
+        y = np.arange(len(tests_with_both))
+        height = 0.35
+        
+        for i, eng in enumerate(sorted(engines)):
+            ed = stats[stats["engine"] == eng].set_index("test_name")
+            vals = [ed.loc[t, "ops_per_sec"] if t in ed.index else 0 for t in tests_with_both]
+            ax.barh(
+                y + (i - (len(engines) - 1) / 2) * height,
+                vals,
+                height,
+                label=eng.upper(),
+                color=engine_color(eng),
+                edgecolor="none",
+            )
+        
+        ax.set_xlabel("Throughput (ops/sec)")
+        ax.set_ylabel("Test")
+        ax.set_yticks(y)
+        ax.set_yticklabels(tests_with_both, fontsize=7)
+        ax.xaxis.set_major_formatter(FuncFormatter(format_ops))
+        ax.legend(loc="lower right")
+        ax.set_title(f"{op} Per-Test Comparison")
+        
+        add_clean_background(fig)
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, f"per_test_{op.lower()}.png"))
+        plt.close(fig)
+
+
+def plot_summary_table(df: pd.DataFrame, out_dir: str) -> None:
+    """Generate a summary statistics table as an image."""
+    if "engine" not in df.columns or "operation" not in df.columns:
+        return
+    
+    ops = [op for op in ["PUT", "GET", "DELETE", "SEEK", "RANGE"] if op in df["operation"].values]
+    engines = sorted(df["engine"].unique().tolist())
+    
+    if not ops or not engines:
+        return
+    
+    rows = []
+    for op in ops:
+        row = {"Operation": op}
+        for eng in engines:
+            subset = df[(df["engine"] == eng) & (df["operation"] == op)]
+            if subset.empty:
+                row[f"{eng.upper()} ops/sec"] = "-"
+                row[f"{eng.upper()} avg lat (μs)"] = "-"
+            else:
+                ops_sec = subset["ops_per_sec"].mean()
+                lat = subset["avg_latency_us"].mean() if "avg_latency_us" in subset.columns else np.nan
+                row[f"{eng.upper()} ops/sec"] = f"{ops_sec:,.0f}"
+                row[f"{eng.upper()} avg lat (μs)"] = f"{lat:,.1f}" if pd.notna(lat) else "-"
+        
+        if len(engines) >= 2 and "tidesdb" in engines and "rocksdb" in engines:
+            t_ops = df[(df["engine"] == "tidesdb") & (df["operation"] == op)]["ops_per_sec"].mean()
+            r_ops = df[(df["engine"] == "rocksdb") & (df["operation"] == op)]["ops_per_sec"].mean()
+            if pd.notna(t_ops) and pd.notna(r_ops) and r_ops > 0:
+                ratio = t_ops / r_ops
+                row["Speedup"] = f"{ratio:.2f}x"
+            else:
+                row["Speedup"] = "-"
+        
+        rows.append(row)
+    
+    summary_df = pd.DataFrame(rows)
+    
+    fig, ax = plt.subplots(figsize=(len(summary_df.columns) * 1.5, len(ops) * 0.6 + 1))
+    ax.axis("off")
+    
+    table = ax.table(
+        cellText=summary_df.values,
+        colLabels=summary_df.columns,
+        cellLoc="center",
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1.2, 1.5)
+    
+    for i in range(len(summary_df.columns)):
+        table[(0, i)].set_facecolor(PALETTE["grid"])
+        table[(0, i)].set_text_props(weight="bold")
+    
+    ax.set_title("Performance Summary", fontsize=12, fontweight="bold", pad=20)
+    
+    add_clean_background(fig)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "summary_table.png"))
+    plt.close(fig)
+
+
+def plot_iterator_throughput(df: pd.DataFrame, out_dir: str) -> None:
+    """Plot ITER (iterator) throughput separately since it's excluded from other charts."""
+    if "ITER" not in df["operation"].values:
+        return
+    
+    iter_data = df[df["operation"] == "ITER"]
+    if iter_data.empty:
+        return
+    
+    tests = iter_data["test_name"].unique().tolist()[:15]
+    
+    fig, ax = plt.subplots(figsize=(12, 5 + len(tests) * 0.2))
+    
+    stats = iter_data[iter_data["test_name"].isin(tests)].groupby(
+        ["test_name", "engine"]
+    )["ops_per_sec"].mean().reset_index()
+    
+    engines = sorted(stats["engine"].unique().tolist())
+    y = np.arange(len(tests))
+    height = 0.35
+    
+    for i, eng in enumerate(engines):
+        ed = stats[stats["engine"] == eng].set_index("test_name")
+        vals = [ed.loc[t, "ops_per_sec"] if t in ed.index else 0 for t in tests]
+        ax.barh(
+            y + (i - (len(engines) - 1) / 2) * height,
+            vals,
+            height,
+            label=eng.upper(),
+            color=engine_color(eng),
+            edgecolor="none",
+        )
+    
+    ax.set_xlabel("Throughput (ops/sec)")
+    ax.set_ylabel("Test")
+    ax.set_yticks(y)
+    ax.set_yticklabels(tests, fontsize=7)
+    ax.xaxis.set_major_formatter(FuncFormatter(format_ops))
+    ax.legend(loc="lower right")
+    ax.set_title("Iterator (ITER) Throughput")
+    
+    add_clean_background(fig)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "iterator_throughput.png"))
+    plt.close(fig)
+
+
 def plot_pattern_comparison(df: pd.DataFrame, out_dir: str) -> None:
     """Compare performance across different key patterns (seq, random, zipfian)."""
     if "pattern" not in df.columns:
@@ -725,6 +1001,12 @@ def generate_graphs(csv_path: str, out_dir: str) -> None:
     plot_workload_comparison(df, out_dir)
     plot_sync_comparison(df, out_dir)
     plot_value_size_impact(df, out_dir)
+    
+    plot_speedup_ratios(df, out_dir)
+    plot_latency_vs_throughput(df, out_dir)
+    plot_per_test_comparison(df, out_dir)
+    plot_summary_table(df, out_dir)
+    plot_iterator_throughput(df, out_dir)
     
     available_ops = df["operation"].unique().tolist()
     sweep_params = ["threads", "batch_size", "value_size", "key_size"]
