@@ -80,6 +80,7 @@ typedef struct
     int index_sample_ratio;
     int block_index_prefix_len;
     size_t klog_value_threshold;
+    int debug_logging; /* enable debug logging for engines (0 = disabled, 1 = enabled) */
 } benchmark_config_t;
 
 typedef struct

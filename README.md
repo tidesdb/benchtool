@@ -9,7 +9,7 @@ A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB 
 ## Build
 ```bash
 rm -rf build && mkdir build && cd build
-cmake ..
+cmake .. -DENABLE_ASAN=OFF -DENABLE_UBSAN=OFF
 make
 cd ..
 ```

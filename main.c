@@ -75,6 +75,7 @@ static void print_usage(const char *prog)
     printf("  --no-bloom-filters        Disable bloom filters\n");
     printf("  --block-indexes           Enable block indexes\n");
     printf("  --no-block-indexes        Disable block indexes\n");
+    printf("  --debug                   Enable debug logging for storage engines\n");
     printf("  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);
@@ -111,7 +112,8 @@ int main(int argc, char **argv)
                                  .min_levels = 5,
                                  .index_sample_ratio = 1,
                                  .block_index_prefix_len = 16,
-                                 .klog_value_threshold = 512};
+                                 .klog_value_threshold = 512,
+                                 .debug_logging = 0};
 
     enum
     {
@@ -123,7 +125,8 @@ int main(int argc, char **argv)
         OPT_MIN_LEVELS,
         OPT_INDEX_SAMPLE_RATIO,
         OPT_BLOCK_INDEX_PREFIX_LEN,
-        OPT_KLOG_VALUE_THRESHOLD
+        OPT_KLOG_VALUE_THRESHOLD,
+        OPT_DEBUG
     };
 
     static struct option long_options[] = {
@@ -158,6 +161,7 @@ int main(int argc, char **argv)
         {"index_sample_ratio", required_argument, 0, OPT_INDEX_SAMPLE_RATIO},
         {"block_index_prefix_len", required_argument, 0, OPT_BLOCK_INDEX_PREFIX_LEN},
         {"klog_value_threshold", required_argument, 0, OPT_KLOG_VALUE_THRESHOLD},
+        {"debug", no_argument, 0, OPT_DEBUG},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
@@ -299,6 +303,9 @@ int main(int argc, char **argv)
                 break;
             case OPT_KLOG_VALUE_THRESHOLD:
                 config.klog_value_threshold = (size_t)atoll(optarg);
+                break;
+            case OPT_DEBUG:
+                config.debug_logging = 1;
                 break;
             default:
                 print_usage(argv[0]);

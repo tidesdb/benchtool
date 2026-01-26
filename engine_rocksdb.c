@@ -55,6 +55,12 @@ static int rocksdb_open_impl(storage_engine_t **engine, const char *path,
     handle->options = rocksdb_options_create();
     rocksdb_options_set_create_if_missing(handle->options, 1);
 
+    /* enable debug logging if requested */
+    if (config->debug_logging)
+    {
+        rocksdb_options_set_info_log_level(handle->options, 0); /* DEBUG_LEVEL */
+    }
+
     /* match TidesDB compression settings */
     rocksdb_options_set_compression(handle->options, rocksdb_lz4_compression);
 
