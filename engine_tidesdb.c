@@ -71,7 +71,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
     }
 
     handle->cf_config = tidesdb_default_column_family_config();
-    handle->cf_config.compression_algorithm = LZ4_COMPRESSION;
+    handle->cf_config.compression_algorithm = TDB_COMPRESS_LZ4;
     handle->cf_config.bloom_fpr = config->bloom_fpr;
     handle->cf_config.l0_queue_stall_threshold = config->l0_queue_stall_threshold;
     handle->cf_config.l1_file_count_trigger = config->l1_file_count_trigger;
