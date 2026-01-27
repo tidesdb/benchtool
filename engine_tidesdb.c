@@ -58,6 +58,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
     families flushing and compacting */
     tdb_config.num_flush_threads = 1;
     tdb_config.num_compaction_threads = 1;
+    tdb_config.log_to_file = 1;
     tdb_config.log_level = config->debug_logging ? TDB_LOG_DEBUG : TDB_LOG_NONE;
 
     tdb_config.block_cache_size =
