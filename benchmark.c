@@ -43,12 +43,31 @@ const char *get_engine_version(const char *engine_name)
 static void append_debug_log(const char *db_path, const char *engine_name)
 {
     char log_path[2048];
-    snprintf(log_path, sizeof(log_path), "%s/LOG", db_path);
+    char output_file[256];
+    FILE *src = NULL;
 
-    FILE *src = fopen(log_path, "r");
-    if (!src) return; /* no LOG file exists */
+    /* determine log file path and output file based on engine */
+    if (strcmp(engine_name, "tidesdb") == 0)
+    {
+        snprintf(log_path, sizeof(log_path), "%s/LOG", db_path);
+        snprintf(output_file, sizeof(output_file), "tidesdb_debug.log");
+    }
+    else if (strcmp(engine_name, "rocksdb") == 0)
+    {
+        snprintf(log_path, sizeof(log_path), "%s/LOG", db_path);
+        snprintf(output_file, sizeof(output_file), "rocksdb_debug.log");
+    }
+    else
+    {
+        /* fallback for unknown engines */
+        snprintf(log_path, sizeof(log_path), "%s/LOG", db_path);
+        snprintf(output_file, sizeof(output_file), "%s_debug.log", engine_name);
+    }
 
-    FILE *dst = fopen("engine_debug.log", "a");
+    src = fopen(log_path, "r");
+    if (!src) return; /* no log file exists */
+
+    FILE *dst = fopen(output_file, "a");
     if (!dst)
     {
         fclose(src);
