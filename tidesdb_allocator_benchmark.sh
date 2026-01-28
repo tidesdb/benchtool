@@ -410,14 +410,14 @@ for alloc in $ALLOCATORS_TO_TEST; do
     log "Purpose: Test large block allocation (4KB-64KB values)"
 
     # 4KB values
-    local large_ops=$((NUM_OPS / 10))
+    large_ops=$((NUM_OPS / 10))
     run_allocator_test "$alloc" \
         "large_4kb_t8" \
         "Large Values 4KB (${large_ops} ops, 8 threads)" \
         -w write -p random -k 64 -v 4096 -o $large_ops -t 8 -b 100
 
     # 64KB values
-    local xlarge_ops=$((NUM_OPS / 50))
+    xlarge_ops=$((NUM_OPS / 50))
     run_allocator_test "$alloc" \
         "large_64kb_t8" \
         "Large Values 64KB (${xlarge_ops} ops, 8 threads)" \
@@ -496,7 +496,7 @@ for alloc in $ALLOCATORS_TO_TEST; do
     log "Purpose: Test allocator memory reclamation behavior"
 
     # First populate, then delete
-    local delete_ops=$((NUM_OPS / 2))
+    delete_ops=$((NUM_OPS / 2))
     cleanup_db
     log "Populating for delete test..."
     if [ "$USE_PRELOAD" = true ]; then
