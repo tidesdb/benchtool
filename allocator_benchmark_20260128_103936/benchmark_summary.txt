@@ -1,0 +1,169 @@
+*============================================*
+  TidesDB Allocator Benchmark
+*============================================*
+
+Date: Wed Jan 28 10:39:36 AM EST 2026
+Mode: standard (5000000 ops per test)
+Allocator(s): all
+Preload Mode: false
+
+System Information:
+  Hostname: agpmastersystem
+  Kernel: 6.2.0-39-generic
+  CPU: 11th Gen Intel(R) Core(TM) i7-11700K @ 3.60GHz
+  CPU Cores: 16
+  Memory: 46Gi
+  Filesystem: 
+
+Results Directory: allocator_benchmark_20260128_103936
+*============================================*
+
+Will install TidesDB 3 times (once per allocator)
+Testing allocators: glibc mimalloc tcmalloc
+
+Output files per allocator:
+  glibc: allocator_benchmark_20260128_103936/glibc_results.txt, allocator_benchmark_20260128_103936/glibc_results.csv
+  mimalloc: allocator_benchmark_20260128_103936/mimalloc_results.txt, allocator_benchmark_20260128_103936/mimalloc_results.csv
+  tcmalloc: allocator_benchmark_20260128_103936/tcmalloc_results.txt, allocator_benchmark_20260128_103936/tcmalloc_results.csv
+
+
+###################################################################
+# ALLOCATOR: glibc
+###################################################################
+
+*------------------------------------------*
+Installing TidesDB with allocator: glibc
+*------------------------------------------*
+Running: ./install_tidesdb.sh 
+=========================================
+TidesDB Installation Script
+=========================================
+Detected 16 CPU cores - will use all for compilation
+Updating package list...
+Hit:1 https://download.docker.com/linux/ubuntu lunar InRelease
+Hit:2 https://deb.nodesource.com/node_24.x nodistro InRelease
+Hit:3 https://repo.radeon.com/amdgpu/6.4.2.1/ubuntu noble InRelease
+Ign:4 https://storage.googleapis.com/download.dartlang.org/linux/debian stable InRelease
+Hit:5 https://dl.google.com/linux/chrome/deb stable InRelease
+Hit:6 https://repo.nordvpn.com/deb/nordvpn/debian stable InRelease
+Hit:7 https://repo.radeon.com/rocm/apt/6.4.2 noble InRelease
+Hit:8 https://storage.googleapis.com/download.dartlang.org/linux/debian stable Release
+Hit:9 https://packages.microsoft.com/ubuntu/23.04/prod lunar InRelease
+Hit:10 https://downloads.cursor.com/aptrepo stable InRelease
+Hit:11 https://packages.cloud.google.com/apt cloud-sdk InRelease
+Hit:13 http://old-releases.ubuntu.com/ubuntu lunar InRelease
+Hit:14 http://old-releases.ubuntu.com/ubuntu lunar-updates InRelease
+Hit:15 https://ppa.launchpadcontent.net/kisak/kisak-mesa/ubuntu lunar InRelease
+Hit:16 http://old-releases.ubuntu.com/ubuntu lunar-security InRelease
+Hit:17 https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu lunar InRelease
+Hit:18 http://old-releases.ubuntu.com/ubuntu lunar-backports InRelease
+Get:19 https://packages.stripe.dev/stripe-cli-debian-local stable InRelease [4,276 B]
+Hit:20 https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable InRelease
+Fetched 4,276 B in 2s (2,790 B/s)
+Reading package lists...
+Installing build dependencies...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.39.2-1ubuntu1.1).
+build-essential is already the newest version (12.9ubuntu3).
+cmake is already the newest version (3.25.1-1ubuntu1).
+libsnappy-dev is already the newest version (1.1.9-3).
+zlib1g-dev is already the newest version (1:1.2.13.dfsg-1ubuntu4).
+liblz4-dev is already the newest version (1.9.4-1).
+libzstd-dev is already the newest version (1.5.4+dfsg2-4).
+The following packages were automatically installed and are no longer required:
+  libevent-2.1-7a libmecab2 librocksdb7.8 mecab-ipadic mecab-ipadic-utf8
+  mecab-utils
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 21 not upgraded.
+Cloning TidesDB repository...
+Cloning into 'tidesdb'...
+Fetching latest release...
+Latest TidesDB version: v7.4.2
+Note: switching to 'v7.4.2'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at ab836c0 Merge pull request #540 from tidesdb/tdb742
+Building TidesDB using 16 parallel jobs...
+(this may take a while)
+-- The C compiler identification is GNU 12.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /tmp/tidesdb/build
+[ 25%] Building C object CMakeFiles/tidesdb.dir/src/bloom_filter.c.o
+[ 25%] Building C object CMakeFiles/tidesdb.dir/src/compress.c.o
+[ 25%] Building C object CMakeFiles/tidesdb.dir/src/tidesdb.c.o
+[ 33%] Building C object CMakeFiles/tidesdb.dir/src/clock_cache.c.o
+[ 41%] Building C object CMakeFiles/tidesdb.dir/src/queue.c.o
+[ 58%] Building C object CMakeFiles/tidesdb.dir/src/skip_list.c.o
+[ 58%] Building C object CMakeFiles/tidesdb.dir/src/block_manager.c.o
+[ 66%] Building C object CMakeFiles/tidesdb.dir/src/manifest.c.o
+[ 75%] Building C object CMakeFiles/tidesdb.dir/src/buffer.c.o
+[ 91%] Building C object CMakeFiles/tidesdb.dir/external/ini.c.o
+[ 91%] Building C object CMakeFiles/tidesdb.dir/external/xxhash.c.o
+[100%] Linking C shared library libtidesdb.so
+[100%] Built target tidesdb
+Installing TidesDB...
+[100%] Built target tidesdb
+Install the project...
+-- Install configuration: "Release"
+-- Installing: /usr/local/lib/libtidesdb.so
+-- Up-to-date: /usr/local/include/tidesdb
+-- Installing: /usr/local/include/tidesdb/compat.h
+-- Installing: /usr/local/include/tidesdb/db.h
+-- Installing: /usr/local/include/tidesdb/bloom_filter.h
+-- Installing: /usr/local/include/tidesdb/buffer.h
+-- Installing: /usr/local/include/tidesdb/queue.h
+-- Installing: /usr/local/include/tidesdb/block_manager.h
+-- Installing: /usr/local/include/tidesdb/compress.h
+-- Installing: /usr/local/include/tidesdb/clock_cache.h
+-- Installing: /usr/local/include/tidesdb/skip_list.h
+-- Installing: /usr/local/include/tidesdb/manifest.h
+-- Installing: /usr/local/include/tidesdb/tidesdb.h
+-- Installing: /usr/local/include/tidesdb/ini.h
+-- Installing: /usr/local/include/tidesdb/xxhash.h
+-- Installing: /usr/local/include/tidesdb/tidesdb_version.h
+-- Installing: /usr/local/lib/cmake/tidesdb/TidesDBConfig.cmake
+-- Installing: /usr/local/lib/cmake/tidesdb/TidesDBConfigVersion.cmake
+Updating library cache...
+
+=========================================
+Installation Complete!
+=========================================
+TidesDB version: v7.4.2
+Built with mimalloc: NO
+Built with tcmalloc: NO
+Built with sanitizers: NO
+Compiled using: 16 parallel jobs
+
+Library location: /usr/local/lib
+Header location: /usr/local/include/tidesdb
+
+To verify the installation, you can check:
+  ldconfig -p | grep tidesdb
+
+Cleaning up temporary files...
+Installation finished successfully!
+TidesDB installed with glibc allocator
+
+Rebuilding benchtool...

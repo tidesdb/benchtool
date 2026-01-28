@@ -1,0 +1,1657 @@
+
+###################################################################
+# ALLOCATOR: glibc
+###################################################################
+
+### 1. High Allocation Churn (Small Values, No Batching) ###
+Purpose: Stress malloc/free with many small, unbatched allocations
+
+*------------------------------------------*
+TEST: Small Value Churn (5000000 ops, 1 threads, batch=1)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 64 bytes
+  Threads: 1
+  Batch Size: 1
+  Test Name: glibc_churn_small_t1
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 289272.22 ops/sec
+  ITER: 4403905.03 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 1
+Key Size: 16 bytes
+Value Size: 64 bytes
+
+PUT Operations:
+  Throughput: 289272.22 ops/sec
+  Duration: 17.285 seconds
+  Latency (avg): 3.28 μs
+  Latency (stddev): 187.57 μs
+  Latency (CV): 5715.09%
+  Latency (p50): 3.00 μs
+  Latency (p95): 5.00 μs
+  Latency (p99): 8.00 μs
+  Latency (min): 1.00 μs
+  Latency (max): 384439.00 μs
+
+ITERATION:
+  Throughput: 4403905.03 ops/sec
+  Duration: 1.135 seconds
+
+Resource Usage:
+  Peak RSS: 550.90 MB
+  Peak VMS: 926.55 MB
+  Disk Reads: 0.03 MB
+  Disk Writes: 547.15 MB
+  CPU User Time: 15.089 seconds
+  CPU System Time: 7.381 seconds
+  CPU Utilization: 119.7%
+  Database Size: 34.35 MB
+
+Amplification Factors:
+  Write Amplification: 1.43x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Small Value Churn (5000000 ops, 4 threads, batch=1)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 64 bytes
+  Threads: 4
+  Batch Size: 1
+  Test Name: glibc_churn_small_t4
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 830638.05 ops/sec
+  ITER: 4342498.03 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 4
+Key Size: 16 bytes
+Value Size: 64 bytes
+
+PUT Operations:
+  Throughput: 830638.05 ops/sec
+  Duration: 6.019 seconds
+  Latency (avg): 4.53 μs
+  Latency (stddev): 48.13 μs
+  Latency (CV): 1061.54%
+  Latency (p50): 4.00 μs
+  Latency (p95): 7.00 μs
+  Latency (p99): 9.00 μs
+  Latency (min): 1.00 μs
+  Latency (max): 102702.00 μs
+
+ITERATION:
+  Throughput: 4342498.03 ops/sec
+  Duration: 1.151 seconds
+
+Resource Usage:
+  Peak RSS: 626.70 MB
+  Peak VMS: 1146.95 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 578.93 MB
+  CPU User Time: 16.991 seconds
+  CPU System Time: 12.381 seconds
+  CPU Utilization: 389.8%
+  Database Size: 52.78 MB
+
+Amplification Factors:
+  Write Amplification: 1.52x
+  Space Amplification: 0.14x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Small Value Churn (5000000 ops, 8 threads, batch=1)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 64 bytes
+  Threads: 8
+  Batch Size: 1
+  Test Name: glibc_churn_small_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 1066100.81 ops/sec
+  ITER: 3836615.43 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 64 bytes
+
+PUT Operations:
+  Throughput: 1066100.81 ops/sec
+  Duration: 4.690 seconds
+  Latency (avg): 7.17 μs
+  Latency (stddev): 24.43 μs
+  Latency (CV): 340.68%
+  Latency (p50): 7.00 μs
+  Latency (p95): 10.00 μs
+  Latency (p99): 13.00 μs
+  Latency (min): 1.00 μs
+  Latency (max): 51145.00 μs
+
+ITERATION:
+  Throughput: 3836615.43 ops/sec
+  Duration: 1.303 seconds
+
+Resource Usage:
+  Peak RSS: 648.93 MB
+  Peak VMS: 1525.78 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 557.84 MB
+  CPU User Time: 17.749 seconds
+  CPU System Time: 25.395 seconds
+  CPU Utilization: 675.5%
+  Database Size: 55.59 MB
+
+Amplification Factors:
+  Write Amplification: 1.46x
+  Space Amplification: 0.15x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Small Value Churn (5000000 ops, 16 threads, batch=1)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 64 bytes
+  Threads: 16
+  Batch Size: 1
+  Test Name: glibc_churn_small_t16
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 858772.17 ops/sec
+  ITER: 3939619.81 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 16
+Key Size: 16 bytes
+Value Size: 64 bytes
+
+PUT Operations:
+  Throughput: 858772.17 ops/sec
+  Duration: 5.822 seconds
+  Latency (avg): 18.15 μs
+  Latency (stddev): 119.25 μs
+  Latency (CV): 657.02%
+  Latency (p50): 13.00 μs
+  Latency (p95): 18.00 μs
+  Latency (p99): 23.00 μs
+  Latency (min): 2.00 μs
+  Latency (max): 31401.00 μs
+
+ITERATION:
+  Throughput: 3939619.81 ops/sec
+  Duration: 1.269 seconds
+
+Resource Usage:
+  Peak RSS: 643.73 MB
+  Peak VMS: 1401.25 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 585.80 MB
+  CPU User Time: 20.031 seconds
+  CPU System Time: 52.313 seconds
+  CPU Utilization: 965.6%
+  Database Size: 58.14 MB
+
+Amplification Factors:
+  Write Amplification: 1.54x
+  Space Amplification: 0.15x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 2. Multi-Threaded Contention ###
+Purpose: Test allocator lock contention with many threads
+
+*------------------------------------------*
+TEST: Thread Contention (5000000 ops, 1 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 1
+  Batch Size: 100
+  Test Name: glibc_contention_t1
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 747240.52 ops/sec
+  ITER: 5671306.93 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 1
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 747240.52 ops/sec
+  Duration: 6.691 seconds
+  Latency (avg): 133.77 μs
+  Latency (stddev): 139.27 μs
+  Latency (CV): 104.11%
+  Latency (p50): 120.00 μs
+  Latency (p95): 152.00 μs
+  Latency (p99): 981.00 μs
+  Latency (min): 52.00 μs
+  Latency (max): 2652.00 μs
+
+ITERATION:
+  Throughput: 5671306.93 ops/sec
+  Duration: 0.882 seconds
+
+Resource Usage:
+  Peak RSS: 495.43 MB
+  Peak VMS: 839.79 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 637.42 MB
+  CPU User Time: 9.928 seconds
+  CPU System Time: 0.681 seconds
+  CPU Utilization: 140.0%
+  Database Size: 39.35 MB
+
+Amplification Factors:
+  Write Amplification: 1.15x
+  Space Amplification: 0.07x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Thread Contention (5000000 ops, 4 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 4
+  Batch Size: 100
+  Test Name: glibc_contention_t4
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 2591197.18 ops/sec
+  ITER: 3859040.07 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 4
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 2591197.18 ops/sec
+  Duration: 1.930 seconds
+  Latency (avg): 150.53 μs
+  Latency (stddev): 46.08 μs
+  Latency (CV): 30.61%
+  Latency (p50): 149.00 μs
+  Latency (p95): 204.00 μs
+  Latency (p99): 250.00 μs
+  Latency (min): 56.00 μs
+  Latency (max): 5112.00 μs
+
+ITERATION:
+  Throughput: 3859040.07 ops/sec
+  Duration: 1.296 seconds
+
+Resource Usage:
+  Peak RSS: 1163.11 MB
+  Peak VMS: 1560.05 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 614.41 MB
+  CPU User Time: 9.637 seconds
+  CPU System Time: 0.866 seconds
+  CPU Utilization: 325.2%
+  Database Size: 48.15 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Thread Contention (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 100
+  Test Name: glibc_contention_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3450443.69 ops/sec
+  ITER: 4129760.37 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3450443.69 ops/sec
+  Duration: 1.449 seconds
+  Latency (avg): 211.35 μs
+  Latency (stddev): 621.14 μs
+  Latency (CV): 293.88%
+  Latency (p50): 184.00 μs
+  Latency (p95): 310.00 μs
+  Latency (p99): 386.00 μs
+  Latency (min): 72.00 μs
+  Latency (max): 69227.00 μs
+
+ITERATION:
+  Throughput: 4129760.37 ops/sec
+  Duration: 1.211 seconds
+
+Resource Usage:
+  Peak RSS: 1155.03 MB
+  Peak VMS: 1825.60 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 619.06 MB
+  CPU User Time: 12.664 seconds
+  CPU System Time: 1.110 seconds
+  CPU Utilization: 517.1%
+  Database Size: 51.93 MB
+
+Amplification Factors:
+  Write Amplification: 1.12x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Thread Contention (5000000 ops, 16 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 16
+  Batch Size: 100
+  Test Name: glibc_contention_t16
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3598908.81 ops/sec
+  ITER: 4195972.03 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 16
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3598908.81 ops/sec
+  Duration: 1.389 seconds
+  Latency (avg): 439.07 μs
+  Latency (stddev): 247.28 μs
+  Latency (CV): 56.32%
+  Latency (p50): 383.00 μs
+  Latency (p95): 815.00 μs
+  Latency (p99): 1186.00 μs
+  Latency (min): 75.00 μs
+  Latency (max): 11792.00 μs
+
+ITERATION:
+  Throughput: 4195972.03 ops/sec
+  Duration: 1.192 seconds
+
+Resource Usage:
+  Peak RSS: 1158.17 MB
+  Peak VMS: 2383.78 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 612.95 MB
+  CPU User Time: 15.355 seconds
+  CPU System Time: 2.068 seconds
+  CPU Utilization: 673.8%
+  Database Size: 52.31 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 3. Mixed Workload ###
+Purpose: Realistic allocation patterns with mixed read/write
+
+*------------------------------------------*
+TEST: Mixed Workload (5000000 ops, 1 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 1
+  Batch Size: 100
+  Test Name: glibc_mixed_t1
+  Key Pattern: Random
+  Workload: Mixed
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 751698.05 ops/sec
+  GET: 135004.75 ops/sec
+  ITER: 5644818.96 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 1
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 751698.05 ops/sec
+  Duration: 6.652 seconds
+  Latency (avg): 132.98 μs
+  Latency (stddev): 136.57 μs
+  Latency (CV): 102.70%
+  Latency (p50): 119.00 μs
+  Latency (p95): 151.00 μs
+  Latency (p99): 963.00 μs
+  Latency (min): 51.00 μs
+  Latency (max): 3335.00 μs
+
+GET Operations:
+  Throughput: 135004.75 ops/sec
+  Duration: 37.036 seconds
+  Latency (avg): 7.34 μs
+  Latency (stddev): 32.22 μs
+  Latency (CV): 439.22%
+  Latency (p50): 4.00 μs
+  Latency (p95): 6.00 μs
+  Latency (p99): 149.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 21944.00 μs
+
+ITERATION:
+  Throughput: 5644818.96 ops/sec
+  Duration: 0.886 seconds
+
+Resource Usage:
+  Peak RSS: 1202.02 MB
+  Peak VMS: 1543.90 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 637.42 MB
+  CPU User Time: 36.579 seconds
+  CPU System Time: 11.398 seconds
+  CPU Utilization: 106.8%
+  Database Size: 39.35 MB
+
+Amplification Factors:
+  Write Amplification: 1.15x
+  Space Amplification: 0.07x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Mixed Workload (5000000 ops, 4 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 4
+  Batch Size: 100
+  Test Name: glibc_mixed_t4
+  Key Pattern: Random
+  Workload: Mixed
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 2461883.88 ops/sec
+  GET: 354160.32 ops/sec
+  ITER: 5906576.86 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 4
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 2461883.88 ops/sec
+  Duration: 2.031 seconds
+  Latency (avg): 152.85 μs
+  Latency (stddev): 40.64 μs
+  Latency (CV): 26.59%
+  Latency (p50): 147.00 μs
+  Latency (p95): 217.00 μs
+  Latency (p99): 255.00 μs
+  Latency (min): 60.00 μs
+  Latency (max): 1804.00 μs
+
+GET Operations:
+  Throughput: 354160.32 ops/sec
+  Duration: 14.118 seconds
+  Latency (avg): 8.55 μs
+  Latency (stddev): 92.55 μs
+  Latency (CV): 1082.82%
+  Latency (p50): 3.00 μs
+  Latency (p95): 6.00 μs
+  Latency (p99): 102.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 65639.00 μs
+
+ITERATION:
+  Throughput: 5906576.86 ops/sec
+  Duration: 0.847 seconds
+
+Resource Usage:
+  Peak RSS: 1603.79 MB
+  Peak VMS: 1997.43 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 611.73 MB
+  CPU User Time: 35.246 seconds
+  CPU System Time: 18.727 seconds
+  CPU Utilization: 311.5%
+  Database Size: 48.39 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Mixed Workload (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 100
+  Test Name: glibc_mixed_t8
+  Key Pattern: Random
+  Workload: Mixed
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3493608.44 ops/sec
+  GET: 1723202.65 ops/sec
+  ITER: 3418868.87 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3493608.44 ops/sec
+  Duration: 1.431 seconds
+  Latency (avg): 213.57 μs
+  Latency (stddev): 70.88 μs
+  Latency (CV): 33.19%
+  Latency (p50): 207.00 μs
+  Latency (p95): 309.00 μs
+  Latency (p99): 393.00 μs
+  Latency (min): 78.00 μs
+  Latency (max): 7239.00 μs
+
+GET Operations:
+  Throughput: 1723202.65 ops/sec
+  Duration: 2.902 seconds
+  Latency (avg): 4.12 μs
+  Latency (stddev): 12.25 μs
+  Latency (CV): 297.27%
+  Latency (p50): 4.00 μs
+  Latency (p95): 10.00 μs
+  Latency (p99): 12.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 9159.00 μs
+
+ITERATION:
+  Throughput: 3418868.87 ops/sec
+  Duration: 1.462 seconds
+
+Resource Usage:
+  Peak RSS: 1286.66 MB
+  Peak VMS: 1811.18 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 615.02 MB
+  CPU User Time: 34.407 seconds
+  CPU System Time: 1.495 seconds
+  CPU Utilization: 584.1%
+  Database Size: 51.75 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Mixed Workload (5000000 ops, 16 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 16
+  Batch Size: 100
+  Test Name: glibc_mixed_t16
+  Key Pattern: Random
+  Workload: Mixed
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3506099.91 ops/sec
+  GET: 2950898.81 ops/sec
+  ITER: 4372808.13 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 16
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3506099.91 ops/sec
+  Duration: 1.426 seconds
+  Latency (avg): 453.07 μs
+  Latency (stddev): 247.81 μs
+  Latency (CV): 54.70%
+  Latency (p50): 394.00 μs
+  Latency (p95): 839.00 μs
+  Latency (p99): 1248.00 μs
+  Latency (min): 67.00 μs
+  Latency (max): 8801.00 μs
+
+GET Operations:
+  Throughput: 2950898.81 ops/sec
+  Duration: 1.694 seconds
+  Latency (avg): 4.07 μs
+  Latency (stddev): 59.98 μs
+  Latency (CV): 1475.33%
+  Latency (p50): 3.00 μs
+  Latency (p95): 7.00 μs
+  Latency (p99): 9.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 28016.00 μs
+
+ITERATION:
+  Throughput: 4372808.13 ops/sec
+  Duration: 1.143 seconds
+
+Resource Usage:
+  Peak RSS: 1284.88 MB
+  Peak VMS: 2379.88 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 630.64 MB
+  CPU User Time: 36.470 seconds
+  CPU System Time: 2.607 seconds
+  CPU Utilization: 845.9%
+  Database Size: 52.48 MB
+
+Amplification Factors:
+  Write Amplification: 1.14x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 4. Large Value Allocations ###
+Purpose: Test large block allocation (4KB-64KB values)
+
+*------------------------------------------*
+TEST: Large Values 4KB (500000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 500000
+  Key Size: 64 bytes
+  Value Size: 4096 bytes
+  Threads: 8
+  Batch Size: 100
+  Test Name: glibc_large_4kb_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 464899.18 ops/sec
+  ITER: 1275637.12 ops/sec (500000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 500000
+Threads: 8
+Key Size: 64 bytes
+Value Size: 4096 bytes
+
+PUT Operations:
+  Throughput: 464899.18 ops/sec
+  Duration: 1.076 seconds
+  Latency (avg): 1596.27 μs
+  Latency (stddev): 259.62 μs
+  Latency (CV): 16.26%
+  Latency (p50): 1576.00 μs
+  Latency (p95): 1984.00 μs
+  Latency (p99): 2145.00 μs
+  Latency (min): 1024.00 μs
+  Latency (max): 4455.00 μs
+
+ITERATION:
+  Throughput: 1275637.12 ops/sec
+  Duration: 0.392 seconds
+
+Resource Usage:
+  Peak RSS: 2000.46 MB
+  Peak VMS: 2205.98 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 2085.16 MB
+  CPU User Time: 4.994 seconds
+  CPU System Time: 4.490 seconds
+  CPU Utilization: 645.9%
+  Database Size: 151.62 MB
+
+Amplification Factors:
+  Write Amplification: 1.05x
+  Space Amplification: 0.08x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Large Values 64KB (100000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 100000
+  Key Size: 64 bytes
+  Value Size: 65536 bytes
+  Threads: 8
+  Batch Size: 10
+  Test Name: glibc_large_64kb_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 18200.16 ops/sec
+  ITER: 172307.73 ops/sec (100000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 100000
+Threads: 8
+Key Size: 64 bytes
+Value Size: 65536 bytes
+
+PUT Operations:
+  Throughput: 18200.16 ops/sec
+  Duration: 5.494 seconds
+  Latency (avg): 4282.28 μs
+  Latency (stddev): 4975.98 μs
+  Latency (CV): 116.20%
+  Latency (p50): 2587.00 μs
+  Latency (p95): 21613.00 μs
+  Latency (p99): 21869.00 μs
+  Latency (min): 979.00 μs
+  Latency (max): 24831.00 μs
+
+ITERATION:
+  Throughput: 172307.73 ops/sec
+  Duration: 0.580 seconds
+
+Resource Usage:
+  Peak RSS: 290.45 MB
+  Peak VMS: 791.52 MB
+  Disk Reads: 0.02 MB
+  Disk Writes: 6467.93 MB
+  CPU User Time: 14.353 seconds
+  CPU System Time: 12.623 seconds
+  CPU Utilization: 443.9%
+  Database Size: 53.34 MB
+
+Amplification Factors:
+  Write Amplification: 1.03x
+  Space Amplification: 0.01x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 5. Batch Size Impact ###
+Purpose: How batching affects allocation patterns
+
+*------------------------------------------*
+TEST: Batch Size 1 (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1
+  Test Name: glibc_batch_1_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 1007547.34 ops/sec
+  ITER: 5653128.55 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 1007547.34 ops/sec
+  Duration: 4.963 seconds
+  Latency (avg): 7.52 μs
+  Latency (stddev): 25.00 μs
+  Latency (CV): 332.50%
+  Latency (p50): 7.00 μs
+  Latency (p95): 11.00 μs
+  Latency (p99): 13.00 μs
+  Latency (min): 1.00 μs
+  Latency (max): 44437.00 μs
+
+ITERATION:
+  Throughput: 5653128.55 ops/sec
+  Duration: 0.884 seconds
+
+Resource Usage:
+  Peak RSS: 659.62 MB
+  Peak VMS: 1396.74 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 744.87 MB
+  CPU User Time: 19.310 seconds
+  CPU System Time: 26.271 seconds
+  CPU Utilization: 730.0%
+  Database Size: 56.12 MB
+
+Amplification Factors:
+  Write Amplification: 1.35x
+  Space Amplification: 0.10x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Batch Size 100 (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 100
+  Test Name: glibc_batch_100_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3412808.54 ops/sec
+  ITER: 4383500.15 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3412808.54 ops/sec
+  Duration: 1.465 seconds
+  Latency (avg): 220.59 μs
+  Latency (stddev): 86.82 μs
+  Latency (CV): 39.36%
+  Latency (p50): 214.00 μs
+  Latency (p95): 311.00 μs
+  Latency (p99): 379.00 μs
+  Latency (min): 64.00 μs
+  Latency (max): 5819.00 μs
+
+ITERATION:
+  Throughput: 4383500.15 ops/sec
+  Duration: 1.141 seconds
+
+Resource Usage:
+  Peak RSS: 1154.43 MB
+  Peak VMS: 1791.94 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 610.13 MB
+  CPU User Time: 12.334 seconds
+  CPU System Time: 1.294 seconds
+  CPU Utilization: 522.2%
+  Database Size: 52.00 MB
+
+Amplification Factors:
+  Write Amplification: 1.10x
+  Space Amplification: 0.09x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Batch Size 1000 (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_batch_1000_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 2966980.47 ops/sec
+  ITER: 4376394.43 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 2966980.47 ops/sec
+  Duration: 1.685 seconds
+  Latency (avg): 2290.33 μs
+  Latency (stddev): 641.12 μs
+  Latency (CV): 27.99%
+  Latency (p50): 2181.00 μs
+  Latency (p95): 3548.00 μs
+  Latency (p99): 4450.00 μs
+  Latency (min): 737.00 μs
+  Latency (max): 5374.00 μs
+
+ITERATION:
+  Throughput: 4376394.43 ops/sec
+  Duration: 1.142 seconds
+
+Resource Usage:
+  Peak RSS: 1164.39 MB
+  Peak VMS: 1805.47 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 604.30 MB
+  CPU User Time: 13.562 seconds
+  CPU System Time: 0.930 seconds
+  CPU Utilization: 512.4%
+  Database Size: 43.78 MB
+
+Amplification Factors:
+  Write Amplification: 1.09x
+  Space Amplification: 0.08x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 6. Access Patterns ###
+Purpose: Sequential vs random memory access patterns
+
+*------------------------------------------*
+TEST: Sequential Write (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_seq_t8
+  Key Pattern: Sequential
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 7298673.39 ops/sec
+  ITER: 7369500.88 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 7298673.39 ops/sec
+  Duration: 0.685 seconds
+  Latency (avg): 1033.13 μs
+  Latency (stddev): 253.30 μs
+  Latency (CV): 24.52%
+  Latency (p50): 967.00 μs
+  Latency (p95): 1539.00 μs
+  Latency (p99): 1792.00 μs
+  Latency (min): 573.00 μs
+  Latency (max): 4526.00 μs
+
+ITERATION:
+  Throughput: 7369500.88 ops/sec
+  Duration: 0.678 seconds
+
+Resource Usage:
+  Peak RSS: 1155.72 MB
+  Peak VMS: 1832.00 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 612.98 MB
+  CPU User Time: 6.208 seconds
+  CPU System Time: 0.795 seconds
+  CPU Utilization: 513.3%
+  Database Size: 55.31 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.10x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Random Write (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_random_t8
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3320375.02 ops/sec
+  ITER: 4216128.89 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3320375.02 ops/sec
+  Duration: 1.506 seconds
+  Latency (avg): 2239.39 μs
+  Latency (stddev): 589.95 μs
+  Latency (CV): 26.34%
+  Latency (p50): 2176.00 μs
+  Latency (p95): 3266.00 μs
+  Latency (p99): 3975.00 μs
+  Latency (min): 778.00 μs
+  Latency (max): 4817.00 μs
+
+ITERATION:
+  Throughput: 4216128.89 ops/sec
+  Duration: 1.186 seconds
+
+Resource Usage:
+  Peak RSS: 1164.47 MB
+  Peak VMS: 1812.62 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 605.89 MB
+  CPU User Time: 13.437 seconds
+  CPU System Time: 0.961 seconds
+  CPU Utilization: 534.8%
+  Database Size: 43.63 MB
+
+Amplification Factors:
+  Write Amplification: 1.10x
+  Space Amplification: 0.08x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 7. Zipfian (Hot Key) Workload ###
+Purpose: Skewed allocation reuse patterns
+
+*------------------------------------------*
+TEST: Zipfian Write (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_zipfian_t8
+  Key Pattern: Zipfian (hot keys)
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3551767.00 ops/sec
+  ITER: 4482312.01 ops/sec (655825 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3551767.00 ops/sec
+  Duration: 1.408 seconds
+  Latency (avg): 2057.16 μs
+  Latency (stddev): 2497.01 μs
+  Latency (CV): 121.38%
+  Latency (p50): 2068.00 μs
+  Latency (p95): 2790.00 μs
+  Latency (p99): 3058.00 μs
+  Latency (min): 684.00 μs
+  Latency (max): 136915.00 μs
+
+ITERATION:
+  Throughput: 4482312.01 ops/sec
+  Duration: 0.146 seconds
+
+Resource Usage:
+  Peak RSS: 606.92 MB
+  Peak VMS: 1105.40 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 576.93 MB
+  CPU User Time: 8.667 seconds
+  CPU System Time: 1.543 seconds
+  CPU Utilization: 656.7%
+  Database Size: 10.21 MB
+
+Amplification Factors:
+  Write Amplification: 1.04x
+  Space Amplification: 0.02x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+*------------------------------------------*
+TEST: Zipfian Mixed (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 100
+  Test Name: glibc_zipfian_mixed_t8
+  Key Pattern: Zipfian (hot keys)
+  Workload: Mixed
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3539008.72 ops/sec
+  GET: 3193796.37 ops/sec
+  ITER: 4396445.38 ops/sec (655765 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3539008.72 ops/sec
+  Duration: 1.413 seconds
+  Latency (avg): 206.96 μs
+  Latency (stddev): 774.34 μs
+  Latency (CV): 374.15%
+  Latency (p50): 202.00 μs
+  Latency (p95): 291.00 μs
+  Latency (p99): 322.00 μs
+  Latency (min): 66.00 μs
+  Latency (max): 134816.00 μs
+
+GET Operations:
+  Throughput: 3193796.37 ops/sec
+  Duration: 1.566 seconds
+  Latency (avg): 1.73 μs
+  Latency (stddev): 0.84 μs
+  Latency (CV): 48.49%
+  Latency (p50): 2.00 μs
+  Latency (p95): 3.00 μs
+  Latency (p99): 4.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 181.00 μs
+
+ITERATION:
+  Throughput: 4396445.38 ops/sec
+  Duration: 0.149 seconds
+
+Resource Usage:
+  Peak RSS: 639.53 MB
+  Peak VMS: 1143.57 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 580.93 MB
+  CPU User Time: 18.697 seconds
+  CPU System Time: 3.517 seconds
+  CPU Utilization: 642.0%
+  Database Size: 10.62 MB
+
+Amplification Factors:
+  Write Amplification: 1.05x
+  Space Amplification: 0.02x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 8. Read-Heavy Workload ###
+Purpose: Memory access patterns during read operations
+
+*------------------------------------------*
+TEST: Random Read (5000000 ops, 8 threads)
+Allocator: glibc
+*------------------------------------------*
+Populating database...
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_read_random_t8_populate
+  Key Pattern: Random
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 3398988.19 ops/sec
+  ITER: 4000806.56 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 3398988.19 ops/sec
+  Duration: 1.471 seconds
+  Latency (avg): 2164.83 μs
+  Latency (stddev): 655.39 μs
+  Latency (CV): 30.27%
+  Latency (p50): 2060.00 μs
+  Latency (p95): 3415.00 μs
+  Latency (p99): 4356.00 μs
+  Latency (min): 765.00 μs
+  Latency (max): 9590.00 μs
+
+ITERATION:
+  Throughput: 4000806.56 ops/sec
+  Duration: 1.250 seconds
+
+Resource Usage:
+  Peak RSS: 1156.37 MB
+  Peak VMS: 1842.61 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 612.54 MB
+  CPU User Time: 13.473 seconds
+  CPU System Time: 1.055 seconds
+  CPU Utilization: 533.8%
+  Database Size: 43.65 MB
+
+Amplification Factors:
+  Write Amplification: 1.11x
+  Space Amplification: 0.08x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+Running read test...
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 5000000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1
+  Test Name: glibc_read_random_t8
+  Key Pattern: Random
+  Workload: Read-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  GET: 490834.55 ops/sec
+  ITER: 7200968.96 ops/sec (5000000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 5000000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+GET Operations:
+  Throughput: 490834.55 ops/sec
+  Duration: 10.187 seconds
+  Latency (avg): 11.67 μs
+  Latency (stddev): 201.05 μs
+  Latency (CV): 1722.25%
+  Latency (p50): 2.00 μs
+  Latency (p95): 3.00 μs
+  Latency (p99): 4.00 μs
+  Latency (min): 0.00 μs
+  Latency (max): 125763.00 μs
+
+ITERATION:
+  Throughput: 7200968.96 ops/sec
+  Duration: 0.694 seconds
+
+Resource Usage:
+  Peak RSS: 928.95 MB
+  Peak VMS: 1240.74 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 0.00 MB
+  CPU User Time: 20.794 seconds
+  CPU System Time: 38.984 seconds
+  CPU Utilization: 534.1%
+  Database Size: 43.65 MB
+
+Amplification Factors:
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+
+### 9. Delete Workload (Memory Reclamation) ###
+Purpose: Test allocator memory reclamation behavior
+Populating for delete test...
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 2500000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_delete_populate
+  Key Pattern: Sequential
+  Workload: Write-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  PUT: 6728786.83 ops/sec
+  ITER: 8382791.80 ops/sec (2500000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 2500000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+PUT Operations:
+  Throughput: 6728786.83 ops/sec
+  Duration: 0.372 seconds
+  Latency (avg): 1043.21 μs
+  Latency (stddev): 239.67 μs
+  Latency (CV): 22.97%
+  Latency (p50): 969.00 μs
+  Latency (p95): 1499.00 μs
+  Latency (p99): 1664.00 μs
+  Latency (min): 290.00 μs
+  Latency (max): 2043.00 μs
+
+ITERATION:
+  Throughput: 8382791.80 ops/sec
+  Duration: 0.298 seconds
+
+Resource Usage:
+  Peak RSS: 681.74 MB
+  Peak VMS: 1198.43 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 296.52 MB
+  CPU User Time: 2.591 seconds
+  CPU System Time: 0.577 seconds
+  CPU Utilization: 472.8%
+  Database Size: 27.87 MB
+
+Amplification Factors:
+  Write Amplification: 1.07x
+  Space Amplification: 0.10x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
+Running delete test...
+=== TidesDB Storage Engine Benchmarker ===
+
+Configuration:
+  Engine: tidesdb (v7.4.2)
+  Operations: 2500000
+  Key Size: 16 bytes
+  Value Size: 100 bytes
+  Threads: 8
+  Batch Size: 1000
+  Test Name: glibc_delete_t8
+  Key Pattern: Sequential
+  Workload: Delete-only
+  Sync Mode: Disabled (fast)
+
+Running TidesDB benchmark...
+  DELETE: [8 threads started] ...............................[T0 done] [T1 done] [T2 done] [T3 done] [T4 done] [T5 done] [T6 done] [T7 done] 7247217.07 ops/sec
+  ITER: 4399510.77 ops/sec (2500000 keys)
+
+
+**=== Benchmark Results ===**
+
+Engine: tidesdb (v7.4.2)
+Operations: 2500000
+Threads: 8
+Key Size: 16 bytes
+Value Size: 100 bytes
+
+DELETE Operations:
+  Throughput: 7247217.07 ops/sec
+  Duration: 0.345 seconds
+  Latency (avg): 1047.78 μs
+  Latency (stddev): 388.80 μs
+  Latency (CV): 37.11%
+  Latency (p50): 964.00 μs
+  Latency (p95): 1586.00 μs
+  Latency (p99): 2318.00 μs
+  Latency (min): 206.00 μs
+  Latency (max): 6833.00 μs
+
+ITERATION:
+  Throughput: 4399510.77 ops/sec
+  Duration: 0.568 seconds
+
+Resource Usage:
+  Peak RSS: 415.89 MB
+  Peak VMS: 597.30 MB
+  Disk Reads: 0.00 MB
+  Disk Writes: 50.11 MB
+  CPU User Time: 2.550 seconds
+  CPU System Time: 0.456 seconds
+  CPU Utilization: 329.0%
+  Database Size: 44.26 MB
+
+Amplification Factors:
+  Write Amplification: 0.18x
+
+CSV exported to: /home/agpmastersystem/benchtool/allocator_benchmark_20260128_104122/glibc_results.csv
