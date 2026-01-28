@@ -1,10 +1,14 @@
 
 # Benchtool
 
-A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB with pluggable architecture. Benchtool measures performance across write-only, read-only, delete-only, and mixed workloads with configurable concurrency for scalability testing. Key generation patterns include sequential, random, zipfian (hot keys), uniform, timestamp-based, and reverse sequential access. The tool provides detailed performance metrics including throughput, latency distributions (p50, p95, p99), and operation durations. Resource monitoring tracks memory usage (RSS/VMS), disk I/O, CPU utilization, and database size. Amplification metrics reveal write, read, and space efficiency in which is critical for understanding SSD wear and storage overhead. Side-by-side engine comparisons and exportable reports enable thorough performance analysis.
+A comprehensive storage engine benchmarking tool supporting TidesDB and RocksDB with pluggable architecture. Benchtool measures performance across write-only, read-only, delete-only, and mixed workloads with configurable concurrency for scalability testing. Key generation patterns include sequential, random, zipfian (hot keys), uniform, timestamp-based, and reverse sequential access. 
+
+The tool provides detailed performance metrics including throughput, latency distributions (p50, p95, p99), and operation durations. Resource monitoring tracks memory usage (RSS/VMS), disk I/O, CPU utilization, and database size. 
+
+Amplification metrics reveal write, read, and space efficiency in which is critical for understanding SSD wear and storage overhead. Side-by-side engine comparisons and exportable reports enable thorough performance analysis.
 
 > [!NOTE]
-> TidesDB and RocksDB are configured to match each other's configurations
+> TidesDB and RocksDB are configured to match each other's configurations for a fair comparison.
 
 ## Build
 ```bash
@@ -62,6 +66,7 @@ The benchtool has default runners such as
 - `tidesdb_rocksdb_no_bloom_indexes.sh` - comparison suite with bloom filters and block indexes disabled
 - `tidesdb_rocksdb_extensive.sh` - extensive multi-run suite with warm/cold, scaling, and sweeps
 - `tidesdb_rocksdb_one_billion.sh` - 1B key write/read/seek/range + 500M delete, 8 threads, memtable 128MB, cache 8GB
+- `tidesdb_allocator_benchmark.sh` - allocator comparison suite (i.e `./tidesdb_allocator_benchmark.sh --preload --allocator all`)
 
 ## Graphs
 Generate image-only graphs from any benchtool CSV with `graphgen.py`:
