@@ -2,18 +2,22 @@
 
 # TidesDB Installation Script
 # This script installs TidesDB from source
-# Usage: ./install_tidesdb.sh [--with-mimalloc] [--with-sanitizer]
+# Usage: ./install_tidesdb.sh [--with-mimalloc] [--with-tcmalloc] [--with-sanitizer]
 
 set -e  # Exit on error
 
 # Parse command line arguments
 USE_MIMALLOC=false
+USE_TCMALLOC=false
 USE_SANITIZER=false
 
 for arg in "$@"; do
     case $arg in
         --with-mimalloc)
             USE_MIMALLOC=true
+            ;;
+        --with-tcmalloc)
+            USE_TCMALLOC=true
             ;;
         --with-sanitizer)
             USE_SANITIZER=true
@@ -23,6 +27,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --with-mimalloc    Build with mimalloc memory allocator"
+            echo "  --with-tcmalloc    Build with tcmalloc memory allocator (Google perftools)"
             echo "  --with-sanitizer   Build with AddressSanitizer and UBSan"
             echo "  --help, -h         Show this help message"
             exit 0
@@ -39,6 +44,9 @@ echo "========================================="
 echo "TidesDB Installation Script"
 if [ "$USE_MIMALLOC" = true ]; then
     echo "(with mimalloc support)"
+fi
+if [ "$USE_TCMALLOC" = true ]; then
+    echo "(with tcmalloc support)"
 fi
 if [ "$USE_SANITIZER" = true ]; then
     echo "(with AddressSanitizer/UBSan)"
@@ -76,6 +84,12 @@ DEPENDENCIES=(
 if [ "$USE_MIMALLOC" = true ]; then
     DEPENDENCIES+=(libmimalloc-dev)
     echo "Including mimalloc in dependencies..."
+fi
+
+# Add tcmalloc if requested
+if [ "$USE_TCMALLOC" = true ]; then
+    DEPENDENCIES+=(libgoogle-perftools-dev)
+    echo "Including tcmalloc (google-perftools) in dependencies..."
 fi
 
 $SUDO apt-get install -y "${DEPENDENCIES[@]}"
@@ -116,6 +130,12 @@ if [ "$USE_MIMALLOC" = true ]; then
     echo "Enabling mimalloc support..."
 fi
 
+# Add tcmalloc option if requested
+if [ "$USE_TCMALLOC" = true ]; then
+    CMAKE_OPTIONS+=(-DTIDESDB_WITH_TCMALLOC=ON)
+    echo "Enabling tcmalloc support..."
+fi
+
 # Add sanitizer option if requested
 if [ "$USE_SANITIZER" = true ]; then
     CMAKE_OPTIONS+=(-DTIDESDB_WITH_SANITIZER=ON)
@@ -148,6 +168,11 @@ if [ "$USE_MIMALLOC" = true ]; then
 else
     echo "Built with mimalloc: NO"
 fi
+if [ "$USE_TCMALLOC" = true ]; then
+    echo "Built with tcmalloc: YES"
+else
+    echo "Built with tcmalloc: NO"
+fi
 if [ "$USE_SANITIZER" = true ]; then
     echo "Built with sanitizers: YES (ASan + UBSan)"
 else
@@ -165,6 +190,9 @@ if [ "$USE_SANITIZER" = true ]; then
 fi
 if [ "$USE_MIMALLOC" = true ]; then
     echo "  ldd /usr/local/lib/libtidesdb.so | grep mimalloc"
+fi
+if [ "$USE_TCMALLOC" = true ]; then
+    echo "  ldd /usr/local/lib/libtidesdb.so | grep tcmalloc"
 fi
 echo ""
 
