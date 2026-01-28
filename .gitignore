@@ -36,4 +36,5 @@ graphs
 tidesdb_rocksdb_*
 large_value_benchmark_*
 __pycache__
+allocator_benchmark_*/
 engine_debug.log
