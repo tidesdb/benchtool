@@ -22,10 +22,13 @@
 
 set -e
 
-BENCH="./build/benchtool"
+# Get script directory first (needed for absolute paths)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+BENCH="${SCRIPT_DIR}/build/benchtool"
 DB_PATH="${BENCHTOOL_DB_PATH:-db-alloc-bench}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-RESULTS_DIR="allocator_benchmark_${TIMESTAMP}"
+RESULTS_DIR="${SCRIPT_DIR}/allocator_benchmark_${TIMESTAMP}"
 MASTER_LOG="${RESULTS_DIR}/benchmark_summary.txt"
 
 # Per-allocator result files will be created dynamically:
@@ -159,6 +162,62 @@ cleanup_db() {
     sync
 }
 
+# Install TidesDB with a specific allocator
+install_tidesdb_with_allocator() {
+    local alloc="$1"
+    log_master ""
+    log_master "*------------------------------------------*"
+    log_master "Installing TidesDB with allocator: $alloc"
+    log_master "*------------------------------------------*"
+    
+    local install_args=""
+    case $alloc in
+        glibc)
+            # No special flags for glibc (default)
+            install_args=""
+            ;;
+        mimalloc)
+            install_args="--with-mimalloc"
+            ;;
+        tcmalloc)
+            install_args="--with-tcmalloc"
+            ;;
+    esac
+    
+    # Run the install script
+    if [ -f "${SCRIPT_DIR}/install_tidesdb.sh" ]; then
+        log_master "Running: ./install_tidesdb.sh $install_args"
+        "${SCRIPT_DIR}/install_tidesdb.sh" $install_args 2>&1 | tee -a "$MASTER_LOG"
+    else
+        log_master "ERROR: install_tidesdb.sh not found at ${SCRIPT_DIR}/install_tidesdb.sh"
+        exit 1
+    fi
+    
+    log_master "TidesDB installed with $alloc allocator"
+}
+
+# Rebuild benchtool to link against newly installed TidesDB
+rebuild_benchtool() {
+    log_master ""
+    log_master "Rebuilding benchtool..."
+    
+    # Clean and rebuild
+    rm -rf "${SCRIPT_DIR}/build"
+    mkdir -p "${SCRIPT_DIR}/build"
+    
+    pushd "${SCRIPT_DIR}/build" > /dev/null
+    cmake .. -DENABLE_ASAN=OFF -DENABLE_UBSAN=OFF 2>&1 | tee -a "$MASTER_LOG"
+    make 2>&1 | tee -a "$MASTER_LOG"
+    popd > /dev/null
+    
+    if [ ! -f "$BENCH" ]; then
+        log_master "ERROR: Failed to build benchtool"
+        exit 1
+    fi
+    
+    log_master "Benchtool rebuilt successfully"
+}
+
 # Detect allocator libraries for preload mode
 MIMALLOC_LIB=""
 TCMALLOC_LIB=""
@@ -240,16 +299,15 @@ log_master ""
 ALLOCATORS_TO_TEST=""
 case $ALLOCATOR in
     all)
-        ALLOCATORS_TO_TEST="glibc"
         if [ "$USE_PRELOAD" = true ]; then
+            # Preload mode: test available allocator libraries
+            ALLOCATORS_TO_TEST="glibc"
             [ -n "$MIMALLOC_LIB" ] && ALLOCATORS_TO_TEST="$ALLOCATORS_TO_TEST mimalloc"
             [ -n "$TCMALLOC_LIB" ] && ALLOCATORS_TO_TEST="$ALLOCATORS_TO_TEST tcmalloc"
         else
-            # Without preload, assume TidesDB was compiled with the allocator
-            # User needs to run benchmark separately for each build
-            log "Note: Without --preload, testing only glibc (default)."
-            log "To test other allocators, rebuild TidesDB with --with-mimalloc or --with-tcmalloc"
-            log "and run this benchmark again."
+            # Install mode: will install TidesDB with each allocator
+            ALLOCATORS_TO_TEST="glibc mimalloc tcmalloc"
+            log_master "Will install TidesDB 3 times (once per allocator)"
         fi
         ;;
     glibc|mimalloc|tcmalloc)
@@ -355,6 +413,12 @@ for alloc in $ALLOCATORS_TO_TEST; do
     log "###################################################################"
     log "# ALLOCATOR: $alloc"
     log "###################################################################"
+    
+    # If not using preload mode, install TidesDB with this allocator and rebuild benchtool
+    if [ "$USE_PRELOAD" = false ]; then
+        install_tidesdb_with_allocator "$alloc"
+        rebuild_benchtool
+    fi
 
     # -------------------------------------------------------------------------
     # 1. HIGH ALLOCATION CHURN (Small Values, No Batching)
