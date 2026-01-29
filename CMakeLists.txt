@@ -52,7 +52,26 @@ find_library(ROCKSDB_LIB rocksdb PATHS ${ROCKSDB_DIR} ${ROCKSDB_DIR}/lib)
 if(ROCKSDB_LIB)
     add_definitions(-DHAVE_ROCKSDB)
     set(ROCKSDB_LIBS ${ROCKSDB_LIB})
-    # Pass RocksDB version if specified
+    # Auto-detect RocksDB version from version.h if not specified
+    if(NOT ROCKSDB_MAJOR)
+        find_path(ROCKSDB_INCLUDE_DIR rocksdb/version.h
+            PATHS ${ROCKSDB_DIR}/include /usr/include /usr/local/include
+            NO_DEFAULT_PATH)
+        if(NOT ROCKSDB_INCLUDE_DIR)
+            find_path(ROCKSDB_INCLUDE_DIR rocksdb/version.h)
+        endif()
+        if(ROCKSDB_INCLUDE_DIR)
+            file(READ "${ROCKSDB_INCLUDE_DIR}/rocksdb/version.h" ROCKSDB_VERSION_H)
+            string(REGEX MATCH "#define ROCKSDB_MAJOR ([0-9]+)" _ ${ROCKSDB_VERSION_H})
+            set(ROCKSDB_MAJOR ${CMAKE_MATCH_1})
+            string(REGEX MATCH "#define ROCKSDB_MINOR ([0-9]+)" _ ${ROCKSDB_VERSION_H})
+            set(ROCKSDB_MINOR ${CMAKE_MATCH_1})
+            string(REGEX MATCH "#define ROCKSDB_PATCH ([0-9]+)" _ ${ROCKSDB_VERSION_H})
+            set(ROCKSDB_PATCH ${CMAKE_MATCH_1})
+            message(STATUS "Detected RocksDB version: ${ROCKSDB_MAJOR}.${ROCKSDB_MINOR}.${ROCKSDB_PATCH}")
+        endif()
+    endif()
+    # Pass RocksDB version to compiler
     if(ROCKSDB_MAJOR)
         add_definitions(-DROCKSDB_MAJOR=${ROCKSDB_MAJOR})
     endif()

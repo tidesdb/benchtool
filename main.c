@@ -377,25 +377,38 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (config.compare_mode && strcmp(config.engine_name, "rocksdb") != 0)
+    if (config.compare_mode)
     {
-        printf("\n=== Cleaning database for baseline comparison ===\n");
-
-        char rm_cmd[2048];
-        snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", config.db_path);
-        int rm_result = system(rm_cmd);
-        if (rm_result != 0)
+        const char *baseline_engine = NULL;
+        if (strcmp(config.engine_name, "rocksdb") == 0)
         {
-            fprintf(stderr, "Warning: Failed to clean database path for baseline\n");
+            baseline_engine = "tidesdb";
+        }
+        else if (strcmp(config.engine_name, "tidesdb") == 0)
+        {
+            baseline_engine = "rocksdb";
         }
 
-        printf("\n=== Running RocksDB Baseline ===\n\n");
-        benchmark_config_t baseline_config = config;
-        baseline_config.engine_name = "rocksdb";
-
-        if (run_benchmark(&baseline_config, &baseline_results) != 0)
+        if (baseline_engine)
         {
-            fprintf(stderr, "Baseline benchmark failed\n");
+            printf("\n=== Cleaning database for baseline comparison ===\n");
+
+            char rm_cmd[2048];
+            snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", config.db_path);
+            int rm_result = system(rm_cmd);
+            if (rm_result != 0)
+            {
+                fprintf(stderr, "Warning: Failed to clean database path for baseline\n");
+            }
+
+            printf("\n=== Running %s Baseline ===\n\n", baseline_engine);
+            benchmark_config_t baseline_config = config;
+            baseline_config.engine_name = baseline_engine;
+
+            if (run_benchmark(&baseline_config, &baseline_results) != 0)
+            {
+                fprintf(stderr, "Baseline benchmark failed\n");
+            }
         }
     }
 
