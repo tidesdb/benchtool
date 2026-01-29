@@ -1327,7 +1327,9 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
 
     if (baseline)
     {
-        fprintf(fp, "=== %s Baseline Results ===\n\n", baseline->engine_name);
+        const char *baseline_version = get_engine_version(baseline->engine_name);
+        fprintf(fp, "=== %s (v%s) Baseline Results ===\n\n", baseline->engine_name,
+                baseline_version);
 
         if (baseline->put_stats.ops_per_second > 0)
         {
