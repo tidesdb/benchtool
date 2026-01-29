@@ -27,9 +27,17 @@ if(ENABLE_TSAN)
     message(STATUS "ThreadSanitizer enabled")
 endif()
 
+if(TIDESDB_INCLUDE_DIR)
+    include_directories(${TIDESDB_INCLUDE_DIR})
+ endif()
+
+if(ROCKSDB_DIR)
+    include_directories(${ROCKSDB_DIR}/include)
+endif()
+
 find_library(TIDESDB_LIB tidesdb PATHS ${TIDESDB_BUILD_DIR} REQUIRED)
 
-find_library(ROCKSDB_LIB rocksdb)
+find_library(ROCKSDB_LIB rocksdb PATHS ${ROCKSDB_DIR} ${ROCKSDB_DIR}/lib)
 if(ROCKSDB_LIB)
     add_definitions(-DHAVE_ROCKSDB)
     set(ROCKSDB_LIBS ${ROCKSDB_LIB})
