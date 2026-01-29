@@ -29,6 +29,7 @@
 
 #ifdef HAVE_ROCKSDB
 #include <rocksdb/c.h>
+extern const char *rocksdb_version_str;
 #endif
 
 const char *get_engine_version(const char *engine_name)
@@ -37,6 +38,12 @@ const char *get_engine_version(const char *engine_name)
     {
         return TIDESDB_VERSION;
     }
+#ifdef HAVE_ROCKSDB
+    if (strcmp(engine_name, "rocksdb") == 0)
+    {
+        return rocksdb_version_str;
+    }
+#endif
     return "unknown";
 }
 
