@@ -31,9 +31,23 @@ cmake -B build \
 
 | Flag | Description |
 |------|-------------|
-| `TIDESDB_BUILD_DIR` | Directory containing `libtidesdb.so` / `libtidesdb.a` |
+| `TIDESDB_BUILD_DIR` | Directory containing `libtidesdb.so` / `libtidesdb.a` (auto-creates symlink for `tidesdb_version.h`) |
 | `TIDESDB_INCLUDE_DIR` | Directory containing TidesDB headers |
 | `ROCKSDB_DIR` | RocksDB root directory (searches `lib/` and `include/` subdirs) |
+| `ROCKSDB_MAJOR` | RocksDB major version number (for version display) |
+| `ROCKSDB_MINOR` | RocksDB minor version number |
+| `ROCKSDB_PATCH` | RocksDB patch version number |
+
+> **Note:** When `TIDESDB_BUILD_DIR` contains `tidesdb_version.h`, CMake automatically creates a symlink so the include path `<tidesdb/tidesdb_version.h>` resolves correctly.
+
+Example with all options:
+```bash
+cmake -B build \
+  -DTIDESDB_BUILD_DIR=/path/to/tidesdb/build \
+  -DTIDESDB_INCLUDE_DIR=/path/to/tidesdb/include \
+  -DROCKSDB_DIR=/path/to/rocksdb \
+  -DROCKSDB_MAJOR=10 -DROCKSDB_MINOR=11 -DROCKSDB_PATCH=0
+```
 
 ## Command Line Options
 ```

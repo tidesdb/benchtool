@@ -27,9 +27,20 @@ if(ENABLE_TSAN)
     message(STATUS "ThreadSanitizer enabled")
 endif()
 
+# If building against TidesDB build dir, create symlink for tidesdb_version.h
+if(TIDESDB_BUILD_DIR AND EXISTS "${TIDESDB_BUILD_DIR}/tidesdb_version.h")
+    set(TIDESDB_SYMLINK_DIR "${CMAKE_BINARY_DIR}/tidesdb_include/tidesdb")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tidesdb_include")
+    if(NOT EXISTS "${TIDESDB_SYMLINK_DIR}")
+        file(CREATE_LINK "${TIDESDB_BUILD_DIR}" "${TIDESDB_SYMLINK_DIR}" SYMBOLIC)
+        message(STATUS "Created symlink: ${TIDESDB_SYMLINK_DIR} -> ${TIDESDB_BUILD_DIR}")
+    endif()
+    include_directories("${CMAKE_BINARY_DIR}/tidesdb_include")
+endif()
+
 if(TIDESDB_INCLUDE_DIR)
     include_directories(${TIDESDB_INCLUDE_DIR})
- endif()
+endif()
 
 if(ROCKSDB_DIR)
     include_directories(${ROCKSDB_DIR}/include)
@@ -41,6 +52,16 @@ find_library(ROCKSDB_LIB rocksdb PATHS ${ROCKSDB_DIR} ${ROCKSDB_DIR}/lib)
 if(ROCKSDB_LIB)
     add_definitions(-DHAVE_ROCKSDB)
     set(ROCKSDB_LIBS ${ROCKSDB_LIB})
+    # Pass RocksDB version if specified
+    if(ROCKSDB_MAJOR)
+        add_definitions(-DROCKSDB_MAJOR=${ROCKSDB_MAJOR})
+    endif()
+    if(ROCKSDB_MINOR)
+        add_definitions(-DROCKSDB_MINOR=${ROCKSDB_MINOR})
+    endif()
+    if(ROCKSDB_PATCH)
+        add_definitions(-DROCKSDB_PATCH=${ROCKSDB_PATCH})
+    endif()
 endif()
 
 add_executable(benchtool

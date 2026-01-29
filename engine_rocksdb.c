@@ -20,6 +20,22 @@
 
 #ifdef HAVE_ROCKSDB
 #include <rocksdb/c.h>
+
+#if !defined(ROCKSDB_MAJOR)
+#define ROCKSDB_MAJOR 0
+#endif
+#if !defined(ROCKSDB_MINOR)
+#define ROCKSDB_MINOR 0
+#endif
+#if !defined(ROCKSDB_PATCH)
+#define ROCKSDB_PATCH 0
+#endif
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x)  STRINGIFY(x)
+const char *rocksdb_version_str =
+    TOSTRING(ROCKSDB_MAJOR) "." TOSTRING(ROCKSDB_MINOR) "." TOSTRING(ROCKSDB_PATCH);
+
 typedef struct
 {
     rocksdb_t *db;
