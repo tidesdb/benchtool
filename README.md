@@ -18,6 +18,23 @@ make
 cd ..
 ```
 
+### Custom Library Paths
+
+If TidesDB or RocksDB are installed in non-standard locations, specify their paths:
+
+```bash
+cmake -B build \
+  -DTIDESDB_BUILD_DIR=/path/to/tidesdb/build \
+  -DTIDESDB_INCLUDE_DIR=/path/to/tidesdb/include \
+  -DROCKSDB_DIR=/path/to/rocksdb
+```
+
+| Flag | Description |
+|------|-------------|
+| `TIDESDB_BUILD_DIR` | Directory containing `libtidesdb.so` / `libtidesdb.a` |
+| `TIDESDB_INCLUDE_DIR` | Directory containing TidesDB headers |
+| `ROCKSDB_DIR` | RocksDB root directory (searches `lib/` and `include/` subdirs) |
+
 ## Command Line Options
 ```
 Usage: benchtool [OPTIONS]
