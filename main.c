@@ -76,6 +76,7 @@ static void print_usage(const char *prog)
     printf("  --block-indexes           Enable block indexes\n");
     printf("  --no-block-indexes        Disable block indexes\n");
     printf("  --debug                   Enable debug logging for storage engines\n");
+    printf("  --use-btree               Use B+tree format for klog (TidesDB only)\n");
     printf("  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);
@@ -113,7 +114,8 @@ int main(int argc, char **argv)
                                  .index_sample_ratio = 1,
                                  .block_index_prefix_len = 16,
                                  .klog_value_threshold = 512,
-                                 .debug_logging = 0};
+                                 .debug_logging = 0,
+                                 .use_btree = 0};
 
     enum
     {
@@ -126,7 +128,8 @@ int main(int argc, char **argv)
         OPT_INDEX_SAMPLE_RATIO,
         OPT_BLOCK_INDEX_PREFIX_LEN,
         OPT_KLOG_VALUE_THRESHOLD,
-        OPT_DEBUG
+        OPT_DEBUG,
+        OPT_USE_BTREE
     };
 
     static struct option long_options[] = {
@@ -162,6 +165,7 @@ int main(int argc, char **argv)
         {"block_index_prefix_len", required_argument, 0, OPT_BLOCK_INDEX_PREFIX_LEN},
         {"klog_value_threshold", required_argument, 0, OPT_KLOG_VALUE_THRESHOLD},
         {"debug", no_argument, 0, OPT_DEBUG},
+        {"use-btree", no_argument, 0, OPT_USE_BTREE},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
@@ -306,6 +310,9 @@ int main(int argc, char **argv)
                 break;
             case OPT_DEBUG:
                 config.debug_logging = 1;
+                break;
+            case OPT_USE_BTREE:
+                config.use_btree = 1;
                 break;
             default:
                 print_usage(argv[0]);

@@ -81,6 +81,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
     handle->cf_config.index_sample_ratio = config->index_sample_ratio;
     handle->cf_config.block_index_prefix_len = config->block_index_prefix_len;
     handle->cf_config.klog_value_threshold = config->klog_value_threshold;
+    handle->cf_config.use_btree = config->use_btree;
 
     /* use configurable bloom filter setting or default to enabled */
     handle->cf_config.enable_bloom_filter =
