@@ -83,6 +83,8 @@ Options:
   --index_sample_ratio <n>       TidesDB index sample ratio (default 1)
   --block_index_prefix_len <n>   TidesDB block index prefix length (default 16)
   --klog_value_threshold <bytes> TidesDB/ RocksDB (BlobDB) KLog value threshold (default 512)
+  --debug                        Enable debug logging for storage engines
+  --use-btree                    Use B+tree format for klog (TidesDB only)
   -h, --help                     Show help message
 ```
 
@@ -98,6 +100,7 @@ The benchtool has default runners such as
 - `tidesdb_rocksdb_extensive.sh` - extensive multi-run suite with warm/cold, scaling, and sweeps
 - `tidesdb_rocksdb_one_billion.sh` - 1B key write/read/seek/range + 500M delete, 8 threads, memtable 128MB, cache 8GB
 - `tidesdb_allocator_benchmark.sh` - allocator comparison suite (i.e `./tidesdb_allocator_benchmark.sh --preload --allocator all`)
+- `tidesdb_btree_comparison.sh` - B+tree vs block-based klog format comparison (10M/25M/50M keys across all workloads)
 
 ## Graphs
 Generate image-only graphs from any benchtool CSV with `graphgen.py`:

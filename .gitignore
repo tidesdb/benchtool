@@ -38,3 +38,5 @@ large_value_benchmark_*
 __pycache__
 allocator_benchmark_*/
 engine_debug.log
+tidesdb_btree_comparison_*.csv
+tidesdb_btree_comparison_*.txt

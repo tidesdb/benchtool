@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <tidesdb/tidesdb_version.h>
-
 #include "benchmark.h"
 
 #include <dirent.h>
@@ -25,6 +23,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <tidesdb/tidesdb_version.h>
 #include <time.h>
 #include <unistd.h>
 
