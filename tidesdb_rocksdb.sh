@@ -11,6 +11,22 @@ CSV_FILE="tidesdb_rocksdb_benchmark_results_${TIMESTAMP}.csv"
 SYNC_ENABLED="false"
 DEFAULT_BATCH_SIZE=1000
 DEFAULT_THREADS=8
+USE_BTREE="false"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --use-btree)
+            USE_BTREE="true"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--use-btree]"
+            exit 1
+            ;;
+    esac
+done
 
 if [ "$SYNC_ENABLED" = "true" ]; then
     SYNC_FLAG="--sync"
@@ -18,6 +34,14 @@ if [ "$SYNC_ENABLED" = "true" ]; then
 else
     SYNC_FLAG=""
     SYNC_MODE="DISABLED (maximum performance)"
+fi
+
+if [ "$USE_BTREE" = "true" ]; then
+    BTREE_FLAG="--use-btree"
+    BTREE_MODE="ENABLED (B+tree klog)"
+else
+    BTREE_FLAG=""
+    BTREE_MODE="DISABLED (block-based klog)"
 fi
 
 if [ ! -f "$BENCH" ]; then
@@ -40,6 +64,7 @@ log "*------------------------------------------*"
 log "RUNNER: TidesDB vs RocksDB Comparison"
 log "Date: $(date)"
 log "Sync Mode: $SYNC_MODE"
+log "TidesDB B+tree: $BTREE_MODE"
 log "Parameters:"
 log "  Default Batch Size: $DEFAULT_BATCH_SIZE"
 log "  Default Threads: $DEFAULT_THREADS"
@@ -81,7 +106,7 @@ run_comparison() {
 
     cleanup_db || exit 1
     log "Running TidesDB (with RocksDB baseline)..."
-    $BENCH -e tidesdb -c $bench_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb -c $bench_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -104,10 +129,10 @@ run_read_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for read test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB read test..."
-    $BENCH -e tidesdb $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $read_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for read test..."
@@ -135,10 +160,10 @@ run_delete_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for delete test..."
-    $BENCH -e tidesdb $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $write_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB delete test..."
-    $BENCH -e tidesdb $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $delete_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for delete test..."
@@ -168,10 +193,10 @@ run_seek_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for seek test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB seek test..."
-    $BENCH -e tidesdb $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $seek_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for seek test..."
@@ -201,10 +226,10 @@ run_range_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for range test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB range test..."
-    $BENCH -e tidesdb $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $range_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for range test..."
