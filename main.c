@@ -76,7 +76,6 @@ static void print_usage(const char *prog)
     printf("  --block-indexes           Enable block indexes\n");
     printf("  --no-block-indexes        Disable block indexes\n");
     printf("  --debug                   Enable debug logging for storage engines\n");
-    printf("  --use-btree               Use B+tree format for klog (TidesDB only)\n");
     printf("  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);

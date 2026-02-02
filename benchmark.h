@@ -81,7 +81,6 @@ typedef struct
     int block_index_prefix_len;
     size_t klog_value_threshold;
     int debug_logging; /* enable debug logging for engines (0 = disabled, 1 = enabled) */
-    int use_btree;     /* use B+tree format for klog (TidesDB) (0 = disabled, 1 = enabled) */
 } benchmark_config_t;
 
 typedef struct

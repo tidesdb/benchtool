@@ -254,32 +254,104 @@ run_mixed_comparison() {
 }
 
 log "=============================================="
-log "=== B+tree vs Block-based: ${DEFAULT_KEYS} Keys ==="
+log "=== PHASE 1: 10 Million Keys ==="
 log "=============================================="
 
-log "### 1. Sequential Write ###"
-run_write_comparison "write_seq" "Sequential Write (${DEFAULT_KEYS} keys, ${DEFAULT_THREADS} threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p seq -o $DEFAULT_KEYS -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+log "### 1.1 Sequential Write (10M) ###"
+run_write_comparison "write_seq_10M" "Sequential Write (10M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p seq -o 10000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
 
-log "### 2. Random Write ###"
-run_write_comparison "write_random" "Random Write (${DEFAULT_KEYS} keys, ${DEFAULT_THREADS} threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w write -p random -o $DEFAULT_KEYS -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+log "### 1.2 Random Write (10M) ###"
+run_write_comparison "write_random_10M" "Random Write (10M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 10000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
 
-log "### 3. Random Read ###"
-run_read_comparison "read_random" "Random Read (${DEFAULT_KEYS} keys, ${DEFAULT_THREADS} threads)" \
-    -w read -p random -o $DEFAULT_KEYS -t $DEFAULT_THREADS
+log "### 1.3 Random Read (10M) ###"
+run_read_comparison "read_random_10M" "Random Read (10M keys, 8 threads)" \
+    -w read -p random -o 10000000 -t $DEFAULT_THREADS
 
-log "### 4. Random Seek ###"
-run_seek_comparison "seek_random" "Random Seek (${DEFAULT_KEYS} keys, ${DEFAULT_THREADS} threads)" \
-    -w seek -p random -o $DEFAULT_KEYS -t $DEFAULT_THREADS
+log "### 1.4 Random Seek (10M) ###"
+run_seek_comparison "seek_random_10M" "Random Seek (10M keys, 8 threads)" \
+    -w seek -p random -o 10000000 -t $DEFAULT_THREADS
 
-log "### 5. Mixed Workload ###"
-run_mixed_comparison "mixed_random" "Mixed Workload (${DEFAULT_KEYS} ops, ${DEFAULT_THREADS} threads, batch=$DEFAULT_BATCH_SIZE)" \
-    -w mixed -p random -o $DEFAULT_KEYS -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+log "### 1.5 Mixed Workload (10M) ###"
+run_mixed_comparison "mixed_random_10M" "Mixed Workload (10M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p random -o 10000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
 
-log "### 6. Range Query ###"
-run_range_comparison "range_random" "Range Scan 100 keys (${DEFAULT_KEYS} population, ${RANGE_OPS} range ops)" \
-    -w range -p random -o $RANGE_OPS -t $DEFAULT_THREADS --range-size 100
+log "### 1.6 Range Query (10M population, 1M range ops) ###"
+run_range_comparison "range_random_10M" "Range Scan 100 keys (10M population, 1M range ops)" \
+    -w range -p random -o 1000000 -t $DEFAULT_THREADS --range-size 100
+
+log "=============================================="
+log "=== PHASE 2: 25 Million Keys ==="
+log "=============================================="
+
+log "### 2.1 Sequential Write (25M) ###"
+run_write_comparison "write_seq_25M" "Sequential Write (25M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p seq -o 25000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 2.2 Random Write (25M) ###"
+run_write_comparison "write_random_25M" "Random Write (25M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 25000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 2.3 Random Read (25M) ###"
+run_read_comparison "read_random_25M" "Random Read (25M keys, 8 threads)" \
+    -w read -p random -o 25000000 -t $DEFAULT_THREADS
+
+log "### 2.4 Random Seek (25M) ###"
+run_seek_comparison "seek_random_25M" "Random Seek (25M keys, 8 threads)" \
+    -w seek -p random -o 25000000 -t $DEFAULT_THREADS
+
+log "### 2.5 Mixed Workload (25M) ###"
+run_mixed_comparison "mixed_random_25M" "Mixed Workload (25M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p random -o 25000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 2.6 Range Query (25M population, 2.5M range ops) ###"
+run_range_comparison "range_random_25M" "Range Scan 100 keys (25M population, 2.5M range ops)" \
+    -w range -p random -o 2500000 -t $DEFAULT_THREADS --range-size 100
+
+log "=============================================="
+log "=== PHASE 3: 50 Million Keys ==="
+log "=============================================="
+
+log "### 3.1 Sequential Write (50M) ###"
+run_write_comparison "write_seq_50M" "Sequential Write (50M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p seq -o 50000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 3.2 Random Write (50M) ###"
+run_write_comparison "write_random_50M" "Random Write (50M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 50000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 3.3 Random Read (50M) ###"
+run_read_comparison "read_random_50M" "Random Read (50M keys, 8 threads)" \
+    -w read -p random -o 50000000 -t $DEFAULT_THREADS
+
+log "### 3.4 Random Seek (50M) ###"
+run_seek_comparison "seek_random_50M" "Random Seek (50M keys, 8 threads)" \
+    -w seek -p random -o 50000000 -t $DEFAULT_THREADS
+
+log "### 3.5 Mixed Workload (50M) ###"
+run_mixed_comparison "mixed_random_50M" "Mixed Workload (50M ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p random -o 50000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 3.6 Range Query (50M population, 5M range ops) ###"
+run_range_comparison "range_random_50M" "Range Scan 100 keys (50M population, 5M range ops)" \
+    -w range -p random -o 5000000 -t $DEFAULT_THREADS --range-size 100
+
+log "=============================================="
+log "=== PHASE 4: Zipfian (Hot Keys) Comparison ==="
+log "=============================================="
+
+log "### 4.1 Zipfian Write (25M) ###"
+run_write_comparison "write_zipfian_25M" "Zipfian Write (25M keys, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p zipfian -o 25000000 -t $DEFAULT_THREADS -b $DEFAULT_BATCH_SIZE
+
+log "### 4.2 Zipfian Read (25M) ###"
+run_read_comparison "read_zipfian_25M" "Zipfian Read (25M keys, 8 threads)" \
+    -w read -p zipfian -o 25000000 -t $DEFAULT_THREADS
+
+log "### 4.3 Zipfian Seek (25M) ###"
+run_seek_comparison "seek_zipfian_25M" "Zipfian Seek (25M keys, 8 threads)" \
+    -w seek -p zipfian -o 25000000 -t $DEFAULT_THREADS
 
 cleanup_db
 
