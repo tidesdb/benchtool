@@ -52,7 +52,22 @@ find_library(ROCKSDB_LIB rocksdb PATHS ${ROCKSDB_DIR} ${ROCKSDB_DIR}/lib)
 if(ROCKSDB_LIB)
     add_definitions(-DHAVE_ROCKSDB)
     set(ROCKSDB_LIBS ${ROCKSDB_LIB})
-    # Auto-detect RocksDB version from version.h if not specified
+endif()
+
+# LMDB support (optional)
+if(LMDB_DIR)
+    include_directories(${LMDB_DIR}/include)
+endif()
+
+find_library(LMDB_LIB lmdb PATHS ${LMDB_DIR} ${LMDB_DIR}/lib)
+if(LMDB_LIB)
+    add_definitions(-DHAVE_LMDB)
+    set(LMDB_LIBS ${LMDB_LIB})
+    message(STATUS "LMDB found: ${LMDB_LIB}")
+endif()
+
+# Auto-detect RocksDB version from version.h if not specified
+if(ROCKSDB_LIB)
     if(NOT ROCKSDB_MAJOR)
         find_path(ROCKSDB_INCLUDE_DIR rocksdb/version.h
             PATHS ${ROCKSDB_DIR}/include /usr/include /usr/local/include
@@ -88,7 +103,8 @@ add_executable(benchtool
         benchmark.c
         engine_tidesdb.c
         engine_rocksdb.c
+        engine_lmdb.c
         engine_registry.c
 )
 
-target_link_libraries(benchtool ${TIDESDB_LIB} ${ROCKSDB_LIBS} pthread m)
+target_link_libraries(benchtool ${TIDESDB_LIB} ${ROCKSDB_LIBS} ${LMDB_LIBS} pthread m)

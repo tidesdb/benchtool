@@ -19,6 +19,7 @@ from matplotlib.ticker import FuncFormatter
 PALETTE = {
     "tidesdb": "#7FAADC",
     "rocksdb": "#E8A87C",
+    "lmdb": "#98D8AA",
     "other": "#9DB4C0",
     "accent": "#C5C3C6",
     "ink": "#2D2D2D",
@@ -111,6 +112,8 @@ def engine_color(engine: str) -> str:
         return PALETTE["tidesdb"]
     if engine == "rocksdb":
         return PALETTE["rocksdb"]
+    if engine == "lmdb":
+        return PALETTE["lmdb"]
     return PALETTE["other"]
 
 

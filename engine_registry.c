@@ -19,6 +19,7 @@
 
 extern const storage_engine_ops_t *get_tidesdb_ops(void);
 extern const storage_engine_ops_t *get_rocksdb_ops(void);
+extern const storage_engine_ops_t *get_lmdb_ops(void);
 
 const storage_engine_ops_t *get_engine_ops(const char *engine_name)
 {
@@ -29,6 +30,15 @@ const storage_engine_ops_t *get_engine_ops(const char *engine_name)
     else if (strcmp(engine_name, "rocksdb") == 0)
     {
         const storage_engine_ops_t *ops = get_rocksdb_ops();
+        if (!ops)
+        {
+            return NULL;
+        }
+        return ops;
+    }
+    else if (strcmp(engine_name, "lmdb") == 0)
+    {
+        const storage_engine_ops_t *ops = get_lmdb_ops();
         if (!ops)
         {
             return NULL;

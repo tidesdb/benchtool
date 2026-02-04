@@ -35,7 +35,7 @@ static void print_usage(const char *prog)
     printf("Options:\n");
     printf(
         "  -e, --engine <name>       Storage engine to benchmark (tidesdb, "
-        "rocksdb)\n");
+        "rocksdb, lmdb)\n");
     printf("  -o, --operations <num>    Number of operations (default: 100000)\n");
     printf("  -k, --key-size <bytes>    Key size in bytes (default: 16)\n");
     printf("  -v, --value-size <bytes>  Value size in bytes (default: 100)\n");

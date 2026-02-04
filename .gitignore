@@ -33,10 +33,12 @@ large_value_benchmark_1gb_results*
 benchmark_results
 latency_inspection_results*
 graphs
-tidesdb_rocksdb_*
+tidesdb_rocksdb_results*
 large_value_benchmark_*
 __pycache__
 allocator_benchmark_*/
 engine_debug.log
 tidesdb_btree_comparison_*.csv
 tidesdb_btree_comparison_*.txt
+tidesdb_rocksdb_lmdb_benchmark_results_*.csv
+tidesdb_rocksdb_lmdb_benchmark_results_*.txt
