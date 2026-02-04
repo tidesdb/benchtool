@@ -40,3 +40,5 @@ allocator_benchmark_*/
 engine_debug.log
 tidesdb_btree_comparison_*.csv
 tidesdb_btree_comparison_*.txt
+tidesdb_rocksdb_lmdb_benchmark_results_*.csv
+tidesdb_rocksdb_lmdb_benchmark_results_*.txt

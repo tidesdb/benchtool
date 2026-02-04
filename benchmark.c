@@ -32,6 +32,11 @@
 extern const char *rocksdb_version_str;
 #endif
 
+#ifdef HAVE_LMDB
+#include <lmdb.h>
+extern const char *lmdb_version_str;
+#endif
+
 const char *get_engine_version(const char *engine_name)
 {
     if (strcmp(engine_name, "tidesdb") == 0)
@@ -42,6 +47,12 @@ const char *get_engine_version(const char *engine_name)
     if (strcmp(engine_name, "rocksdb") == 0)
     {
         return rocksdb_version_str;
+    }
+#endif
+#ifdef HAVE_LMDB
+    if (strcmp(engine_name, "lmdb") == 0)
+    {
+        return lmdb_version_str;
     }
 #endif
     return "unknown";
@@ -344,6 +355,26 @@ static size_t get_directory_size_recursive(const char *path, int is_cf_dir)
 
 static size_t get_directory_size(const char *path)
 {
+    struct stat st;
+    if (stat(path, &st) != 0)
+    {
+        return 0;
+    }
+
+    /* handle single-file databases (e.g., LMDB with MDB_NOSUBDIR) */
+    if (S_ISREG(st.st_mode))
+    {
+        size_t total = st.st_size;
+        /* also check for LMDB lock file */
+        char lock_path[1024];
+        snprintf(lock_path, sizeof(lock_path), "%s-lock", path);
+        if (stat(lock_path, &st) == 0 && S_ISREG(st.st_mode))
+        {
+            total += st.st_size;
+        }
+        return total;
+    }
+
     /* start at db_path level (is_cf_dir = 0), subdirectories will be column families */
     return get_directory_size_recursive(path, 0);
 }
