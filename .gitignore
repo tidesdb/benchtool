@@ -22,6 +22,7 @@ cmake-build-release
 .idea
 build
 .vscode
+venv
 vcpkg_installed
 .vs
 run.sh
@@ -43,3 +44,4 @@ tidesdb_btree_comparison_*.csv
 tidesdb_btree_comparison_*.txt
 tidesdb_rocksdb_lmdb_benchmark_results_*.csv
 tidesdb_rocksdb_lmdb_benchmark_results_*.txt
+benchmark_plots

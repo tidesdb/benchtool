@@ -93,7 +93,10 @@ The benchtool has default runners such as
 
 - `large_value_benchmark.sh` - 8KB value suite (PUT/GET/SEEK/RANGE) with both engines, 100K ops, 2 threads
 - `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines, 10 ops, ~10GB total data
-- `tidesdb_rocksdb.sh` - main comparison suite with 24 tests: 1-12 (32GB cache, 8 threads, 10M ops) + 13-24 (12GB cache, 16 threads, 4x ops)
+- `tidesdb_rocksdb.sh` - main comparison suite with 25 tests across 3 categories:
+  - **Standard scale** (tests 1–12): 64MB cache, 8 threads — sequential/random/zipfian writes (10M), random reads (10M), mixed workloads (5M), deletes (5M), large values (4KB, 1M ops), small values (64B, 50M ops), batch size scaling (1–10000), delete batch scaling, seek performance (random/seq/zipfian), range scans
+  - **Large scale** (tests 13–24): 64MB cache, 16 threads, 4x operations — same workload categories at higher concurrency and volume
+  - **Durability** (test 25): synced writes with scaling threads and ops (25K/1t, 50K/4t, 100K/8t, 500K/16t)
 - `tidesdb_rocksdb_quick.sh` - fast benchmark inspired by RocksDB wiki (100M bulkload, 50M read/write, 16 threads, 32GB cache, ~1-2 hours)
 - `tidesdb_rocksdb_synced.sh` - synced (durable) write suite with reduced ops for practicality
 - `tidesdb_rocksdb_single_threaded.sh` - single-threaded comparison suite
@@ -106,6 +109,8 @@ The benchtool has default runners such as
 - `tidesdb_btree_comparison.sh` - B+tree vs block-based klog format comparison (default 10M keys, configurable via `-k`)
 
 ## Graphs
+
+### Generic CSV Graphs
 Generate image-only graphs from any benchtool CSV with `graphgen.py`:
 
 ```bash
@@ -115,6 +120,36 @@ python3 graphgen.py <csv_file> [output_dir]
 Notes:
 - CSV includes `test_name` (from `--test-name`) to uniquely identify each run, including populate steps tagged with `_populate`.
 - Graphgen adapts to any CSV by checking available columns; it outputs throughput, latency averages + percentiles, variability (CV%) + stddev, resource usage (CPU/IO/memory/duration), amplification, and parameter sweep plots when the data exists.
+
+### TidesDB vs RocksDB Comparison Plots
+Generate detailed comparison plots from `tidesdb_rocksdb.sh` CSV output with `plot_tidesdb_rocksdb.py`:
+
+```bash
+python3 -m venv venv && source venv/bin/activate && pip install pandas matplotlib numpy
+python3 plot_tidesdb_rocksdb.py <csv_file>
+```
+
+Outputs 17 PNG plots to `benchmark_plots/` (TidesDB = blue, RocksDB = grey):
+
+| Plot | Description |
+|------|-------------|
+| `00_speedup_summary` | Horizontal bar chart of TidesDB/RocksDB throughput ratio across all workloads |
+| `01_write_throughput` | Sequential, random, zipfian write throughput (standard + large scale) |
+| `02_read_mixed_throughput` | Read throughput + mixed workload PUT/GET sides |
+| `03_delete_throughput` | Delete throughput with batch size scaling |
+| `04_seek_throughput` | Random, sequential, zipfian seek throughput |
+| `05_range_scan_throughput` | Range scan throughput (100/1000 keys, random/sequential) |
+| `06_batch_size_scaling` | Line chart of throughput vs batch size (1 to 10K) |
+| `07_value_size_impact` | 64B vs 100B vs 4KB value write performance |
+| `08_latency_overview` | 4-panel average latency: writes, reads, seeks, ranges |
+| `09_latency_percentiles` | 6-panel p50/p95/p99 for key workloads |
+| `10_write_amplification` | Write amplification factor comparison |
+| `11_space_efficiency` | On-disk DB size + space amplification |
+| `12_resource_usage` | 4-panel: memory (RSS/VMS), disk writes, CPU% |
+| `13_tail_latency` | Average vs p99 latency side-by-side |
+| `14_duration_comparison` | Wall-clock duration for key tests |
+| `15_latency_variability` | CV% (coefficient of variation) comparison |
+| `16_sync_write_performance` | Synced (durable) write throughput and latency scaling |
 
 
 ## Usage Examples
