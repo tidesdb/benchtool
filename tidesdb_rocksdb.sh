@@ -4,11 +4,12 @@
 # ========================================
 #
 # DESCRIPTION:
-#   Standard benchmark suite comparing TidesDB and RocksDB across 24 test
+#   Standard benchmark suite comparing TidesDB and RocksDB across 25 test
 #   categories including writes, reads, mixed workloads, deletes, seeks,
 #   and range scans with various patterns and batch sizes.
 #   Tests 1-12 use 64MB cache and 8 threads.
-#   Tests 13-24 use 64MB cache, 16 threads, and 4x operations (large scale).
+#   Tests 13-24 use 6GB cache, 16 threads, and 4x operations (large scale).
+#   Test 25 uses 64MB cache with sync enabled for durability testing.
 #
 # FLOW:
 #   1. For each test, run TidesDB then RocksDB separately
