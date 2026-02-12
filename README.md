@@ -95,7 +95,7 @@ The benchtool has default runners such as
 - `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines, 10 ops, ~10GB total data
 - `tidesdb_rocksdb.sh` - main comparison suite with 25 tests across 3 categories:
   - **Standard scale** (tests 1–12): 64MB cache, 8 threads — sequential/random/zipfian writes (10M), random reads (10M), mixed workloads (5M), deletes (5M), large values (4KB, 1M ops), small values (64B, 50M ops), batch size scaling (1–10000), delete batch scaling, seek performance (random/seq/zipfian), range scans
-  - **Large scale** (tests 13–24): 64MB cache, 16 threads, 4x operations — same workload categories at higher concurrency and volume
+  - **Large scale** (tests 13–24): 6GB cache, 16 threads, 4x operations — same workload categories at higher concurrency and volume
   - **Durability** (test 25): synced writes with scaling threads and ops (25K/1t, 50K/4t, 100K/8t, 500K/16t)
 - `tidesdb_rocksdb_quick.sh` - fast benchmark inspired by RocksDB wiki (100M bulkload, 50M read/write, 16 threads, 32GB cache, ~1-2 hours)
 - `tidesdb_rocksdb_synced.sh` - synced (durable) write suite with reduced ops for practicality
