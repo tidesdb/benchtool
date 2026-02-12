@@ -1,4 +1,53 @@
 #!/bin/bash
+#
+# TidesDB vs RocksDB Comparison Benchmark
+# ========================================
+#
+# DESCRIPTION:
+#   Standard benchmark suite comparing TidesDB and RocksDB across 24 test
+#   categories including writes, reads, mixed workloads, deletes, seeks,
+#   and range scans with various patterns and batch sizes.
+#   Tests 1-12 use 32GB cache and 8 threads.
+#   Tests 13-24 use 12GB cache, 16 threads, and 4x operations (large scale).
+#
+# FLOW:
+#   1. For each test, run TidesDB then RocksDB separately
+#   2. For read/seek/range/delete tests: populate DB first, then run workload
+#   3. Clean up DB between engine runs for fair comparison
+#   4. Results output to timestamped .txt and .csv files
+#
+# TEST CATEGORIES (Standard: 32GB cache, 8 threads):
+#   1.  Sequential Write (10M ops)
+#   2.  Random Write (10M ops)
+#   3.  Random Read (10M ops)
+#   4.  Mixed Workload 50/50 (5M ops)
+#   5.  Zipfian Write + Mixed (5M ops each)
+#   6.  Delete (5M ops)
+#   7.  Large Values (1M ops, 4KB values)
+#   8.  Small Values (50M ops, 64B values)
+#   9.  Batch Size Scaling (1 to 10000)
+#   10. Delete Batch Scaling
+#   11. Seek Performance (random, seq, zipfian)
+#   12. Range Scan Performance
+#
+# TEST CATEGORIES (Large Scale: 12GB cache, 16 threads, 4x ops):
+#   13. Sequential Write (40M ops)
+#   14. Random Write (40M ops)
+#   15. Random Read (40M ops)
+#   16. Mixed Workload (20M ops)
+#   17. Zipfian Write + Mixed (20M ops each)
+#   18. Delete (20M ops)
+#   19. Large Values (4M ops, 4KB values)
+#   20. Small Values (200M ops, 64B values)
+#   21. Batch Size Scaling (1, 100, 1000)
+#   22. Delete Batch Scaling
+#   23. Seek Performance (random, seq, zipfian)
+#   24. Range Scan Performance
+#
+# USAGE:
+#   ./tidesdb_rocksdb.sh
+#   ./tidesdb_rocksdb.sh --use-btree
+#
 
 set -e
 
@@ -11,6 +60,7 @@ CSV_FILE="tidesdb_rocksdb_benchmark_results_${TIMESTAMP}.csv"
 SYNC_ENABLED="false"
 DEFAULT_BATCH_SIZE=1000
 DEFAULT_THREADS=8
+BLOCK_CACHE_SIZE=34359738368
 USE_BTREE="false"
 
 # Parse command line arguments
@@ -105,8 +155,12 @@ run_comparison() {
     log "*------------------------------------------*"
 
     cleanup_db || exit 1
-    log "Running TidesDB (with RocksDB baseline)..."
-    $BENCH -e tidesdb -c $bench_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    log "Running TidesDB..."
+    $BENCH -e tidesdb $bench_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+
+    cleanup_db || exit 1
+    log "Running RocksDB..."
+    $BENCH -e rocksdb $bench_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -129,17 +183,17 @@ run_read_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for read test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB read test..."
-    $BENCH -e tidesdb $read_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $read_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for read test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB read test..."
-    $BENCH -e rocksdb $read_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $read_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -160,17 +214,17 @@ run_delete_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for delete test..."
-    $BENCH -e tidesdb $write_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $write_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB delete test..."
-    $BENCH -e tidesdb $delete_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $delete_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for delete test..."
-    $BENCH -e rocksdb $write_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $write_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB delete test..."
-    $BENCH -e rocksdb $delete_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $delete_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -193,17 +247,17 @@ run_seek_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for seek test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB seek test..."
-    $BENCH -e tidesdb $seek_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $seek_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for seek test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB seek test..."
-    $BENCH -e rocksdb $seek_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $seek_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -214,7 +268,9 @@ run_range_comparison() {
     local test_name="$2"
     shift 2
     local range_args="$@"
+    # Strip -w range and --range-size from args for populate phase
     local write_args="${range_args/-w range/-w write}"
+    write_args=$(echo "$write_args" | sed 's/--range-size [0-9]*//g')
 
     local populate_args="$write_args -b $DEFAULT_BATCH_SIZE"
     local populate_test_id="${test_id}_populate"
@@ -226,17 +282,17 @@ run_range_comparison() {
 
     cleanup_db || exit 1
     log "Populating TidesDB for range test..."
-    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $populate_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running TidesDB range test..."
-    $BENCH -e tidesdb $range_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e tidesdb $range_args $SYNC_FLAG $BTREE_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log "Populating RocksDB for range test..."
-    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $populate_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$populate_test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     log "Running RocksDB range test..."
-    $BENCH -e rocksdb $range_args $SYNC_FLAG -d "$DB_PATH" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
+    $BENCH -e rocksdb $range_args $SYNC_FLAG -d "$DB_PATH" --block-cache-size "$BLOCK_CACHE_SIZE" --test-name "$test_id" --csv "$CSV_FILE" 2>&1 | tee -a "$RESULTS"
 
     cleanup_db || exit 1
     log ""
@@ -324,6 +380,86 @@ run_range_comparison "range_random_1000_500K_t8" "Range Scan 1000 keys (500K ops
 
 run_range_comparison "range_seq_100_1M_t8" "Sequential Range Scan 100 keys (1M ops, 8 threads)" \
     -w range -p seq -o 1000000 -t 8 --range-size 100
+
+log ""
+log "=========================================="
+log "LARGE SCALE TESTS (12GB cache, 16 threads, 4x ops)"
+log "=========================================="
+log ""
+
+BLOCK_CACHE_SIZE=12884901888
+
+log "### 13. Sequential Write Performance (Large Scale) ###"
+run_comparison "write_seq_40M_t16_b${DEFAULT_BATCH_SIZE}" "Sequential Write (40M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p seq -o 40000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 14. Random Write Performance (Large Scale) ###"
+run_comparison "write_random_40M_t16_b${DEFAULT_BATCH_SIZE}" "Random Write (40M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 40000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 15. Random Read Performance (Large Scale) ###"
+run_read_comparison "read_random_40M_t16" "Random Read (40M ops, 16 threads)" \
+    -w read -p random -o 40000000 -t 16
+
+log "### 16. Mixed Workload (Large Scale) ###"
+run_comparison "mixed_random_20M_t16_b${DEFAULT_BATCH_SIZE}" "Mixed Workload (20M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p random -o 20000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 17. Hot Key Workload (Large Scale) ###"
+run_comparison "write_zipfian_20M_t16_b${DEFAULT_BATCH_SIZE}" "Zipfian Write (20M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p zipfian -o 20000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+run_comparison "mixed_zipfian_20M_t16_b${DEFAULT_BATCH_SIZE}" "Zipfian Mixed (20M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w mixed -p zipfian -o 20000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 18. Delete Performance (Large Scale) ###"
+run_delete_comparison "delete_random_20M_t16_b${DEFAULT_BATCH_SIZE}" "Random Delete (20M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w delete -p random -o 20000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 19. Large Value Performance (Large Scale) ###"
+run_comparison "write_large_values_4M_k256_v4096_t16_b${DEFAULT_BATCH_SIZE}" "Large Values (4M ops, 256B key, 4KB value, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -k 256 -v 4096 -o 4000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 20. Small Value Performance (Large Scale) ###"
+run_comparison "write_small_values_200M_k16_v64_t16_b${DEFAULT_BATCH_SIZE}" "Small Values (200M ops, 16B key, 64B value, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -k 16 -v 64 -o 200000000 -t 16 -b $DEFAULT_BATCH_SIZE
+
+log "### 21. Batch Size Comparison (Large Scale) ###"
+run_comparison "batch_1_40M_t16" "Batch Size 1 (no batching, 40M ops, 16 threads)" \
+    -w write -p random -o 40000000 -t 16 -b 1
+
+run_comparison "batch_100_40M_t16" "Batch Size 100 (40M ops, 16 threads)" \
+    -w write -p random -o 40000000 -t 16 -b 100
+
+run_comparison "batch_1000_40M_t16" "Batch Size 1000 (40M ops, 16 threads)" \
+    -w write -p random -o 40000000 -t 16 -b 1000
+
+log "### 22. Delete Batch Scaling (Large Scale) ###"
+run_delete_comparison "delete_batch_1_20M_t16" "Delete Batch=1 (20M ops, 16 threads)" \
+    -w delete -p random -o 20000000 -t 16 -b 1
+
+run_delete_comparison "delete_batch_1000_20M_t16" "Delete Batch=1000 (20M ops, 16 threads)" \
+    -w delete -p random -o 20000000 -t 16 -b 1000
+
+log "### 23. Seek Performance (Large Scale) ###"
+run_seek_comparison "seek_random_20M_t16" "Random Seek (20M ops, 16 threads)" \
+    -w seek -p random -o 20000000 -t 16
+
+run_seek_comparison "seek_seq_20M_t16" "Sequential Seek (20M ops, 16 threads)" \
+    -w seek -p seq -o 20000000 -t 16
+
+run_seek_comparison "seek_zipfian_20M_t16" "Zipfian Seek (20M ops, 16 threads)" \
+    -w seek -p zipfian -o 20000000 -t 16
+
+log "### 24. Range Query Performance (Large Scale) ###"
+run_range_comparison "range_random_100_4M_t16" "Range Scan 100 keys (4M ops, 16 threads)" \
+    -w range -p random -o 4000000 -t 16 --range-size 100
+
+run_range_comparison "range_random_1000_2M_t16" "Range Scan 1000 keys (2M ops, 16 threads)" \
+    -w range -p random -o 2000000 -t 16 --range-size 1000
+
+run_range_comparison "range_seq_100_4M_t16" "Sequential Range Scan 100 keys (4M ops, 16 threads)" \
+    -w range -p seq -o 4000000 -t 16 --range-size 100
 
 cleanup_db
 
