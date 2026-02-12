@@ -7,8 +7,8 @@
 #   Standard benchmark suite comparing TidesDB and RocksDB across 24 test
 #   categories including writes, reads, mixed workloads, deletes, seeks,
 #   and range scans with various patterns and batch sizes.
-#   Tests 1-12 use 32GB cache and 8 threads.
-#   Tests 13-24 use 12GB cache, 16 threads, and 4x operations (large scale).
+#   Tests 1-12 use 64MB cache and 8 threads.
+#   Tests 13-24 use 64MB cache, 16 threads, and 4x operations (large scale).
 #
 # FLOW:
 #   1. For each test, run TidesDB then RocksDB separately
@@ -16,7 +16,7 @@
 #   3. Clean up DB between engine runs for fair comparison
 #   4. Results output to timestamped .txt and .csv files
 #
-# TEST CATEGORIES (Standard: 32GB cache, 8 threads):
+# TEST CATEGORIES (Standard: 64MB cache, 8 threads):
 #   1.  Sequential Write (10M ops)
 #   2.  Random Write (10M ops)
 #   3.  Random Read (10M ops)
@@ -30,7 +30,7 @@
 #   11. Seek Performance (random, seq, zipfian)
 #   12. Range Scan Performance
 #
-# TEST CATEGORIES (Large Scale: 12GB cache, 16 threads, 4x ops):
+# TEST CATEGORIES (Large Scale: 64MB cache, 16 threads, 4x ops):
 #   13. Sequential Write (40M ops)
 #   14. Random Write (40M ops)
 #   15. Random Read (40M ops)
@@ -43,6 +43,9 @@
 #   22. Delete Batch Scaling
 #   23. Seek Performance (random, seq, zipfian)
 #   24. Range Scan Performance
+#
+# DURABILITY TESTS (64MB cache, sync enabled):
+#   25. Synced Write Scaling (25K/1t, 50K/4t, 100K/8t, 500K/16t)
 #
 # USAGE:
 #   ./tidesdb_rocksdb.sh
@@ -60,7 +63,7 @@ CSV_FILE="tidesdb_rocksdb_benchmark_results_${TIMESTAMP}.csv"
 SYNC_ENABLED="false"
 DEFAULT_BATCH_SIZE=1000
 DEFAULT_THREADS=8
-BLOCK_CACHE_SIZE=34359738368
+BLOCK_CACHE_SIZE=67108864
 USE_BTREE="false"
 
 # Parse command line arguments
@@ -383,11 +386,11 @@ run_range_comparison "range_seq_100_1M_t8" "Sequential Range Scan 100 keys (1M o
 
 log ""
 log "=========================================="
-log "LARGE SCALE TESTS (12GB cache, 16 threads, 4x ops)"
+log "LARGE SCALE TESTS (64MB cache, 16 threads, 4x ops)"
 log "=========================================="
 log ""
 
-BLOCK_CACHE_SIZE=12884901888
+BLOCK_CACHE_SIZE=67108864
 
 log "### 13. Sequential Write Performance (Large Scale) ###"
 run_comparison "write_seq_40M_t16_b${DEFAULT_BATCH_SIZE}" "Sequential Write (40M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
@@ -460,6 +463,27 @@ run_range_comparison "range_random_1000_2M_t16" "Range Scan 1000 keys (2M ops, 1
 
 run_range_comparison "range_seq_100_4M_t16" "Sequential Range Scan 100 keys (4M ops, 16 threads)" \
     -w range -p seq -o 4000000 -t 16 --range-size 100
+
+log ""
+log "=========================================="
+log "DURABILITY TESTS (sync enabled, 64MB cache)"
+log "=========================================="
+log ""
+
+log "### 25. Synced Write Scaling ###"
+log "Testing durable writes with sync enabled, scaling ops and threads"
+
+run_comparison "sync_write_random_25K_t1_b${DEFAULT_BATCH_SIZE}" "Synced Random Write (25K ops, 1 thread, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 25000 -t 1 -b $DEFAULT_BATCH_SIZE --sync
+
+run_comparison "sync_write_random_50K_t4_b${DEFAULT_BATCH_SIZE}" "Synced Random Write (50K ops, 4 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 50000 -t 4 -b $DEFAULT_BATCH_SIZE --sync
+
+run_comparison "sync_write_random_100K_t8_b${DEFAULT_BATCH_SIZE}" "Synced Random Write (100K ops, 8 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 100000 -t 8 -b $DEFAULT_BATCH_SIZE --sync
+
+run_comparison "sync_write_random_500K_t16_b${DEFAULT_BATCH_SIZE}" "Synced Random Write (500K ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \
+    -w write -p random -o 500000 -t 16 -b $DEFAULT_BATCH_SIZE --sync
 
 cleanup_db
 
