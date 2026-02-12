@@ -27,7 +27,16 @@ typedef struct
     tidesdb_column_family_t *cf;
     tidesdb_sync_mode_t sync_mode;
     tidesdb_column_family_config_t cf_config; /* store config to avoid duplication */
+    pthread_key_t txn_key;                    /* thread-local key for reusable transactions */
+    int txn_key_initialized;                  /* flag to track if key was created */
 } tidesdb_handle_t;
+
+/* thread-local transaction wrapper for reuse via tidesdb_txn_reset */
+typedef struct
+{
+    tidesdb_txn_t *txn;
+    int committed; /* 1 if txn was committed/aborted and can be reset */
+} thread_local_txn_t;
 
 typedef struct
 {
@@ -111,6 +120,16 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
         return -1;
     }
 
+    /* initialize thread-local storage for reusable transactions */
+    if (pthread_key_create(&handle->txn_key, NULL) == 0)
+    {
+        handle->txn_key_initialized = 1;
+    }
+    else
+    {
+        handle->txn_key_initialized = 0;
+    }
+
     (*engine)->handle = handle;
     (*engine)->ops = &tidesdb_ops;
 
@@ -137,6 +156,22 @@ static void tidesdb_set_sync_mode(storage_engine_t *engine, int sync_enabled)
 static int tidesdb_close_impl(storage_engine_t *engine)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
+
+    /* clean up thread-local transaction if exists */
+    if (handle->txn_key_initialized)
+    {
+        thread_local_txn_t *tl_txn = pthread_getspecific(handle->txn_key);
+        if (tl_txn)
+        {
+            if (tl_txn->txn)
+            {
+                tidesdb_txn_free(tl_txn->txn);
+            }
+            free(tl_txn);
+        }
+        pthread_key_delete(handle->txn_key);
+    }
+
     /* tidesdb_close() frees db_path internally, so we don't free it here */
     tidesdb_close(handle->db);
     free(handle);
@@ -144,16 +179,82 @@ static int tidesdb_close_impl(storage_engine_t *engine)
     return 0;
 }
 
+/* helper to get or create a reusable transaction for the current thread */
+static tidesdb_txn_t *get_or_create_txn(tidesdb_handle_t *handle, thread_local_txn_t **tl_out)
+{
+    if (!handle->txn_key_initialized)
+    {
+        /* fallback: create new transaction each time */
+        *tl_out = NULL;
+        tidesdb_txn_t *txn = NULL;
+        if (tidesdb_txn_begin(handle->db, &txn) != 0) return NULL;
+        return txn;
+    }
+
+    thread_local_txn_t *tl_txn = pthread_getspecific(handle->txn_key);
+    if (!tl_txn)
+    {
+        /* first call from this thread - allocate thread-local storage */
+        tl_txn = malloc(sizeof(thread_local_txn_t));
+        if (!tl_txn)
+        {
+            *tl_out = NULL;
+            return NULL;
+        }
+        tl_txn->txn = NULL;
+        tl_txn->committed = 1; /* mark as needing new txn */
+        pthread_setspecific(handle->txn_key, tl_txn);
+    }
+
+    *tl_out = tl_txn;
+
+    if (tl_txn->txn && tl_txn->committed)
+    {
+        /* reuse existing transaction via reset */
+        if (tidesdb_txn_reset(tl_txn->txn, TDB_ISOLATION_READ_COMMITTED) == 0)
+        {
+            tl_txn->committed = 0;
+            return tl_txn->txn;
+        }
+        /* reset failed, free and create new */
+        tidesdb_txn_free(tl_txn->txn);
+        tl_txn->txn = NULL;
+    }
+
+    if (!tl_txn->txn)
+    {
+        /* create new transaction */
+        if (tidesdb_txn_begin(handle->db, &tl_txn->txn) != 0)
+        {
+            return NULL;
+        }
+        tl_txn->committed = 0;
+    }
+
+    return tl_txn->txn;
+}
+
 static int tidesdb_put_impl(storage_engine_t *engine, const uint8_t *key, size_t key_size,
                             const uint8_t *value, size_t value_size)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
-    tidesdb_txn_t *txn = NULL;
+    thread_local_txn_t *tl_txn = NULL;
+    tidesdb_txn_t *txn = get_or_create_txn(handle, &tl_txn);
+    if (!txn) return -1;
 
-    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
     int result = tidesdb_txn_put(txn, handle->cf, key, key_size, value, value_size, 0);
     if (result == 0) result = tidesdb_txn_commit(txn);
-    tidesdb_txn_free(txn);
+
+    if (tl_txn)
+    {
+        /* mark as committed so it can be reset on next use */
+        tl_txn->committed = 1;
+    }
+    else
+    {
+        /* fallback path: free the transaction */
+        tidesdb_txn_free(txn);
+    }
 
     return result;
 }
@@ -162,11 +263,21 @@ static int tidesdb_get_impl(storage_engine_t *engine, const uint8_t *key, size_t
                             uint8_t **value, size_t *value_size)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
-    tidesdb_txn_t *txn = NULL;
+    thread_local_txn_t *tl_txn = NULL;
+    tidesdb_txn_t *txn = get_or_create_txn(handle, &tl_txn);
+    if (!txn) return -1;
 
-    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
     int result = tidesdb_txn_get(txn, handle->cf, key, key_size, value, value_size);
-    tidesdb_txn_free(txn);
+
+    /* GET doesn't need commit, but we mark as committed so reset works */
+    if (tl_txn)
+    {
+        tl_txn->committed = 1;
+    }
+    else
+    {
+        tidesdb_txn_free(txn);
+    }
 
     return result;
 }
@@ -174,12 +285,21 @@ static int tidesdb_get_impl(storage_engine_t *engine, const uint8_t *key, size_t
 static int tidesdb_del_impl(storage_engine_t *engine, const uint8_t *key, size_t key_size)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
-    tidesdb_txn_t *txn = NULL;
+    thread_local_txn_t *tl_txn = NULL;
+    tidesdb_txn_t *txn = get_or_create_txn(handle, &tl_txn);
+    if (!txn) return -1;
 
-    if (tidesdb_txn_begin(handle->db, &txn) != 0) return -1;
     int result = tidesdb_txn_delete(txn, handle->cf, key, key_size);
     if (result == 0) result = tidesdb_txn_commit(txn);
-    tidesdb_txn_free(txn);
+
+    if (tl_txn)
+    {
+        tl_txn->committed = 1;
+    }
+    else
+    {
+        tidesdb_txn_free(txn);
+    }
 
     return result;
 }
