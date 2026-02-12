@@ -91,16 +91,18 @@ Options:
 ## Runners
 The benchtool has default runners such as
 
-- `large_value_benchmark.sh` - 8KB value suite (PUT/GET/SEEK/RANGE) with both engines
-- `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines
-- `tidesdb_rocksdb.sh` - main mixed workload comparison suite
+- `large_value_benchmark.sh` - 8KB value suite (PUT/GET/SEEK/RANGE) with both engines, 100K ops, 2 threads
+- `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines, 10 ops, ~10GB total data
+- `tidesdb_rocksdb.sh` - main mixed workload comparison suite (10M ops, 8 threads, batch 1000)
 - `tidesdb_rocksdb_synced.sh` - synced (durable) write suite with reduced ops for practicality
 - `tidesdb_rocksdb_single_threaded.sh` - single-threaded comparison suite
 - `tidesdb_rocksdb_no_bloom_indexes.sh` - comparison suite with bloom filters and block indexes disabled
-- `tidesdb_rocksdb_extensive.sh` - extensive multi-run suite with warm/cold, scaling, and sweeps
+- `tidesdb_rocksdb_extensive.sh` - extensive multi-run suite (900M keys, 32GB cache, 16 threads, 3 runs per test, warm/cold cache, scaling sweeps)
 - `tidesdb_rocksdb_one_billion.sh` - 1B key write/read/seek/range + 500M delete, 8 threads, memtable 128MB, cache 8GB
+- `tidesdb_lmdb.sh` - TidesDB vs LMDB comparison suite (10M ops, 8 threads)
+- `tidesdb_rocksdb_lmdb.sh` - three-way comparison (TidesDB vs RocksDB vs LMDB), configurable via `--engines`
 - `tidesdb_allocator_benchmark.sh` - allocator comparison suite (i.e `./tidesdb_allocator_benchmark.sh --preload --allocator all`)
-- `tidesdb_btree_comparison.sh` - B+tree vs block-based klog format comparison (10M/25M/50M keys across all workloads)
+- `tidesdb_btree_comparison.sh` - B+tree vs block-based klog format comparison (default 10M keys, configurable via `-k`)
 
 ## Graphs
 Generate image-only graphs from any benchtool CSV with `graphgen.py`:
