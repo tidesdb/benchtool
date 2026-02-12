@@ -93,7 +93,8 @@ The benchtool has default runners such as
 
 - `large_value_benchmark.sh` - 8KB value suite (PUT/GET/SEEK/RANGE) with both engines, 100K ops, 2 threads
 - `large_value_benchmark_1gb.sh` - 1GB value suite (PUT/GET/RANGE) with both engines, 10 ops, ~10GB total data
-- `tidesdb_rocksdb.sh` - main mixed workload comparison suite (10M ops, 8 threads, batch 1000)
+- `tidesdb_rocksdb.sh` - main comparison suite with 24 tests: 1-12 (32GB cache, 8 threads, 10M ops) + 13-24 (12GB cache, 16 threads, 4x ops)
+- `tidesdb_rocksdb_quick.sh` - fast benchmark inspired by RocksDB wiki (100M bulkload, 50M read/write, 16 threads, 32GB cache, ~1-2 hours)
 - `tidesdb_rocksdb_synced.sh` - synced (durable) write suite with reduced ops for practicality
 - `tidesdb_rocksdb_single_threaded.sh` - single-threaded comparison suite
 - `tidesdb_rocksdb_no_bloom_indexes.sh` - comparison suite with bloom filters and block indexes disabled
