@@ -30,7 +30,7 @@
 #   11. Seek Performance (random, seq, zipfian)
 #   12. Range Scan Performance
 #
-# TEST CATEGORIES (Large Scale: 64MB cache, 16 threads, 4x ops):
+# TEST CATEGORIES (Large Scale: 6GB cache, 16 threads, 4x ops):
 #   13. Sequential Write (40M ops)
 #   14. Random Write (40M ops)
 #   15. Random Read (40M ops)
@@ -386,11 +386,11 @@ run_range_comparison "range_seq_100_1M_t8" "Sequential Range Scan 100 keys (1M o
 
 log ""
 log "=========================================="
-log "LARGE SCALE TESTS (64MB cache, 16 threads, 4x ops)"
+log "LARGE SCALE TESTS (6GB cache, 16 threads, 4x ops)"
 log "=========================================="
 log ""
 
-BLOCK_CACHE_SIZE=67108864
+BLOCK_CACHE_SIZE=6442450944
 
 log "### 13. Sequential Write Performance (Large Scale) ###"
 run_comparison "write_seq_40M_t16_b${DEFAULT_BATCH_SIZE}" "Sequential Write (40M ops, 16 threads, batch=$DEFAULT_BATCH_SIZE)" \

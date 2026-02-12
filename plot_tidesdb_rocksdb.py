@@ -154,11 +154,11 @@ def plot_write_throughput(df):
         (a1, [('write_seq_10M_t8_b1000','Seq\n10M'),
                ('write_random_10M_t8_b1000','Random\n10M'),
                ('write_zipfian_5M_t8_b1000','Zipfian\n5M')],
-         'Standard (8 threads, 32GB cache)'),
+         'Standard (8 threads, 64MB cache)'),
         (a2, [('write_seq_40M_t16_b1000','Seq\n40M'),
                ('write_random_40M_t16_b1000','Random\n40M'),
                ('write_zipfian_20M_t16_b1000','Zipfian\n20M')],
-         'Large Scale (16 threads, 12GB cache)'),
+         'Large Scale (16 threads, 6GB cache)'),
     ]:
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'PUT','ops_per_sec') for t in tests]
