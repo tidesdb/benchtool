@@ -33,6 +33,7 @@ large_value_benchmark_1gb_results*
 benchmark_results
 latency_inspection_results*
 graphs
+tidesdb_rocksdb_benchmark_results_*
 tidesdb_rocksdb_results*
 large_value_benchmark_*
 __pycache__
