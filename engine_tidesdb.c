@@ -46,6 +46,20 @@ typedef struct
 
 static const storage_engine_ops_t tidesdb_ops;
 
+/* destructor for thread-local transaction storage - called when thread exits */
+static void thread_local_txn_destructor(void *data)
+{
+    thread_local_txn_t *tl_txn = (thread_local_txn_t *)data;
+    if (tl_txn)
+    {
+        if (tl_txn->txn)
+        {
+            tidesdb_txn_free(tl_txn->txn);
+        }
+        free(tl_txn);
+    }
+}
+
 static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
                              const benchmark_config_t *config)
 {
@@ -121,7 +135,7 @@ static int tidesdb_open_impl(storage_engine_t **engine, const char *path,
     }
 
     /* initialize thread-local storage for reusable transactions */
-    if (pthread_key_create(&handle->txn_key, NULL) == 0)
+    if (pthread_key_create(&handle->txn_key, thread_local_txn_destructor) == 0)
     {
         handle->txn_key_initialized = 1;
     }
@@ -157,18 +171,10 @@ static int tidesdb_close_impl(storage_engine_t *engine)
 {
     tidesdb_handle_t *handle = (tidesdb_handle_t *)engine->handle;
 
-    /* clean up thread-local transaction if exists */
+    /* thread-local transactions are cleaned up by thread_local_txn_destructor
+     * when each thread exits, so we only need to delete the key here */
     if (handle->txn_key_initialized)
     {
-        thread_local_txn_t *tl_txn = pthread_getspecific(handle->txn_key);
-        if (tl_txn)
-        {
-            if (tl_txn->txn)
-            {
-                tidesdb_txn_free(tl_txn->txn);
-            }
-            free(tl_txn);
-        }
         pthread_key_delete(handle->txn_key);
     }
 
