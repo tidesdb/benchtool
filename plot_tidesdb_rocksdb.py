@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-TidesDB vs RocksDB Benchmark (tidesdb_rocksdb.sh) Visualization
+TidesDB vs RocksDB Benchmark Visualization
 ===========================================
 Generates comparison plots from CSV benchmark data.
+Supports both tidesdb_rocksdb.sh and tidesdb_rocksdb_old.sh formats.
 Colors: TidesDB = Blue, RocksDB = Grey
 """
 
@@ -39,6 +40,31 @@ def load_data(csv_path):
     main = df[~df['test_name'].str.contains('_populate', na=False)]
     main = main[main['operation'] != 'ITER'].copy()
     return main
+
+
+def has_data(df, tests):
+    """Check if any of the specified tests have data for both engines."""
+    for item in tests:
+        tn = item[0] if isinstance(item, tuple) else item
+        op = item[1] if isinstance(item, tuple) and len(item) > 1 else 'PUT'
+        t = val(df, 'tidesdb', tn, op, 'ops_per_sec')
+        r = val(df, 'rocksdb', tn, op, 'ops_per_sec')
+        if t > 0 or r > 0:
+            return True
+    return False
+
+
+def filter_available(df, tests, op_idx=1):
+    """Filter tests to only those with data available."""
+    available = []
+    for item in tests:
+        tn = item[0]
+        op = item[op_idx] if len(item) > op_idx else 'PUT'
+        t = val(df, 'tidesdb', tn, op, 'ops_per_sec')
+        r = val(df, 'rocksdb', tn, op, 'ops_per_sec')
+        if t > 0 or r > 0:
+            available.append(item)
+    return available
 
 
 def val(df, engine, test_name, operation, column):
@@ -148,18 +174,33 @@ def plot_speedup_summary(df):
 # Plot 01: Write Throughput
 # ═══════════════════════════════════════════════
 def plot_write_throughput(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_tests = [('write_seq_10M_t8_b1000','Seq\n10M'),
+                 ('write_random_10M_t8_b1000','Random\n10M'),
+                 ('write_zipfian_5M_t8_b1000','Zipfian\n5M')]
+    large_tests = [('write_seq_40M_t16_b1000','Seq\n40M'),
+                   ('write_random_40M_t16_b1000','Random\n40M'),
+                   ('write_zipfian_20M_t16_b1000','Zipfian\n20M')]
+    
+    std_avail = [(t[0], t[1]) for t in std_tests if val(df,'tidesdb',t[0],'PUT','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'PUT','ops_per_sec') > 0]
+    large_avail = [(t[0], t[1]) for t in large_tests if val(df,'tidesdb',t[0],'PUT','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'PUT','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 01_write_throughput.png (no data, skipped)')
+        return
+    
+    # Determine layout based on available data
+    if std_avail and large_avail:
+        fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+        axes = [(a1, std_avail, 'Standard (8 threads)'), (a2, large_avail, 'Large Scale (16 threads)')]
+    elif std_avail:
+        fig, a1 = plt.subplots(1, 1, figsize=(10, 6))
+        axes = [(a1, std_avail, 'Standard (8 threads)')]
+    else:
+        fig, a1 = plt.subplots(1, 1, figsize=(10, 6))
+        axes = [(a1, large_avail, 'Large Scale (16 threads)')]
+    
     fig.suptitle('Write Throughput (ops/sec)')
-    for ax, tests, title in [
-        (a1, [('write_seq_10M_t8_b1000','Seq\n10M'),
-               ('write_random_10M_t8_b1000','Random\n10M'),
-               ('write_zipfian_5M_t8_b1000','Zipfian\n5M')],
-         'Standard (8 threads, 64MB cache)'),
-        (a2, [('write_seq_40M_t16_b1000','Seq\n40M'),
-               ('write_random_40M_t16_b1000','Random\n40M'),
-               ('write_zipfian_20M_t16_b1000','Zipfian\n20M')],
-         'Large Scale (16 threads, 6GB cache)'),
-    ]:
+    for ax, tests, title in axes:
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'PUT','ops_per_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],'PUT','ops_per_sec') for t in tests]
@@ -172,30 +213,41 @@ def plot_write_throughput(df):
 # Plot 02: Read & Mixed Throughput
 # ═══════════════════════════════════════════════
 def plot_read_mixed(df):
-    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(18, 6))
+    # Filter to available tests
+    read_tests = [('read_random_10M_t8','GET','Read\n10M,8t'),('read_random_40M_t16','GET','Read\n40M,16t')]
+    mixed_put = [('mixed_random_5M_t8_b1000','PUT','Rand\n5M,8t'),
+                 ('mixed_zipfian_5M_t8_b1000','PUT','Zipf\n5M,8t'),
+                 ('mixed_random_20M_t16_b1000','PUT','Rand\n20M,16t')]
+    mixed_get = [('mixed_random_5M_t8_b1000','GET','Rand\n5M,8t'),
+                 ('mixed_zipfian_5M_t8_b1000','GET','Zipf\n5M,8t'),
+                 ('mixed_random_20M_t16_b1000','GET','Rand\n20M,16t')]
+    
+    read_avail = [t for t in read_tests if val(df,'tidesdb',t[0],t[1],'ops_per_sec') > 0 or val(df,'rocksdb',t[0],t[1],'ops_per_sec') > 0]
+    put_avail = [t for t in mixed_put if val(df,'tidesdb',t[0],t[1],'ops_per_sec') > 0 or val(df,'rocksdb',t[0],t[1],'ops_per_sec') > 0]
+    get_avail = [t for t in mixed_get if val(df,'tidesdb',t[0],t[1],'ops_per_sec') > 0 or val(df,'rocksdb',t[0],t[1],'ops_per_sec') > 0]
+    
+    panels = []
+    if read_avail:
+        panels.append((read_avail, 'Read Throughput'))
+    if put_avail:
+        panels.append((put_avail, 'Mixed — Write Side'))
+    if get_avail:
+        panels.append((get_avail, 'Mixed — Read Side'))
+    
+    if not panels:
+        print('  - 02_read_mixed_throughput.png (no data, skipped)')
+        return
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(6*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Read & Mixed Workload Throughput')
-    # Reads
-    t = [('read_random_10M_t8','GET','Read\n10M,8t'),('read_random_40M_t16','GET','Read\n40M,16t')]
-    paired_bars(a1, [x[2] for x in t],
-                [val(df,'tidesdb',x[0],x[1],'ops_per_sec') for x in t],
-                [val(df,'rocksdb',x[0],x[1],'ops_per_sec') for x in t],
-                'ops/sec', 'Read Throughput')
-    # Mixed PUT
-    t = [('mixed_random_5M_t8_b1000','PUT','Rand\n5M,8t'),
-         ('mixed_zipfian_5M_t8_b1000','PUT','Zipf\n5M,8t'),
-         ('mixed_random_20M_t16_b1000','PUT','Rand\n20M,16t')]
-    paired_bars(a2, [x[2] for x in t],
-                [val(df,'tidesdb',x[0],x[1],'ops_per_sec') for x in t],
-                [val(df,'rocksdb',x[0],x[1],'ops_per_sec') for x in t],
-                'ops/sec', 'Mixed — Write Side')
-    # Mixed GET
-    t = [('mixed_random_5M_t8_b1000','GET','Rand\n5M,8t'),
-         ('mixed_zipfian_5M_t8_b1000','GET','Zipf\n5M,8t'),
-         ('mixed_random_20M_t16_b1000','GET','Rand\n20M,16t')]
-    paired_bars(a3, [x[2] for x in t],
-                [val(df,'tidesdb',x[0],x[1],'ops_per_sec') for x in t],
-                [val(df,'rocksdb',x[0],x[1],'ops_per_sec') for x in t],
-                'ops/sec', 'Mixed — Read Side')
+    
+    for ax, (tests, title) in zip(axes, panels):
+        paired_bars(ax, [x[2] for x in tests],
+                    [val(df,'tidesdb',x[0],x[1],'ops_per_sec') for x in tests],
+                    [val(df,'rocksdb',x[0],x[1],'ops_per_sec') for x in tests],
+                    'ops/sec', title)
     fig.tight_layout(rect=[0,0,1,.93])
     save(fig, '02_read_mixed_throughput.png')
 
@@ -204,18 +256,33 @@ def plot_read_mixed(df):
 # Plot 03: Delete Throughput
 # ═══════════════════════════════════════════════
 def plot_delete(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_tests = [('delete_batch_1_5M_t8','Batch 1'),
+                 ('delete_batch_100_5M_t8','Batch 100'),
+                 ('delete_batch_1000_5M_t8','Batch 1000'),
+                 ('delete_random_5M_t8_b1000','Random b1000')]
+    large_tests = [('delete_batch_1_20M_t16','Batch 1'),
+                   ('delete_batch_1000_20M_t16','Batch 1000'),
+                   ('delete_random_20M_t16_b1000','Main b1000')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],'DELETE','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'DELETE','ops_per_sec') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],'DELETE','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'DELETE','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 03_delete_throughput.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard (8 threads)'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale (16 threads)'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(8*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Delete Throughput')
-    for ax, tests, title in [
-        (a1, [('delete_batch_1_5M_t8','Batch 1'),
-               ('delete_batch_100_5M_t8','Batch 100'),
-               ('delete_batch_1000_5M_t8','Batch 1000')],
-         'Standard (5M, 8t)'),
-        (a2, [('delete_batch_1_20M_t16','Batch 1'),
-               ('delete_batch_1000_20M_t16','Batch 1000'),
-               ('delete_random_20M_t16_b1000','Main b1000')],
-         'Large Scale (20M, 16t)'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'DELETE','ops_per_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],'DELETE','ops_per_sec') for t in tests]
@@ -228,14 +295,30 @@ def plot_delete(df):
 # Plot 04: Seek Throughput
 # ═══════════════════════════════════════════════
 def plot_seek(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_tests = [('seek_random_5M_t8','Random'),('seek_seq_5M_t8','Sequential'),
+                 ('seek_zipfian_5M_t8','Zipfian')]
+    large_tests = [('seek_random_20M_t16','Random'),('seek_seq_20M_t16','Sequential'),
+                   ('seek_zipfian_20M_t16','Zipfian')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],'SEEK','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'SEEK','ops_per_sec') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],'SEEK','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'SEEK','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 04_seek_throughput.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard (8 threads)'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale (16 threads)'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(8*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Seek Throughput')
-    for ax, tests, title in [
-        (a1, [('seek_random_5M_t8','Random'),('seek_seq_5M_t8','Sequential'),
-               ('seek_zipfian_5M_t8','Zipfian')], 'Standard (5M, 8t)'),
-        (a2, [('seek_random_20M_t16','Random'),('seek_seq_20M_t16','Sequential'),
-               ('seek_zipfian_20M_t16','Zipfian')], 'Large Scale (20M, 16t)'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'SEEK','ops_per_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],'SEEK','ops_per_sec') for t in tests]
@@ -248,16 +331,32 @@ def plot_seek(df):
 # Plot 05: Range Scan Throughput
 # ═══════════════════════════════════════════════
 def plot_range(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_tests = [('range_random_100_1M_t8','Rand 100\n1M'),
+                 ('range_random_1000_500K_t8','Rand 1000\n500K'),
+                 ('range_seq_100_1M_t8','Seq 100\n1M')]
+    large_tests = [('range_random_100_4M_t16','Rand 100\n4M'),
+                   ('range_random_1000_2M_t16','Rand 1000\n2M'),
+                   ('range_seq_100_4M_t16','Seq 100\n4M')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],'RANGE','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'RANGE','ops_per_sec') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],'RANGE','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'RANGE','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 05_range_scan_throughput.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard (8 threads)'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale (16 threads)'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(8*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Range Scan Throughput')
-    for ax, tests, title in [
-        (a1, [('range_random_100_1M_t8','Rand 100\n1M'),
-               ('range_random_1000_500K_t8','Rand 1000\n500K'),
-               ('range_seq_100_1M_t8','Seq 100\n1M')], 'Standard (8t)'),
-        (a2, [('range_random_100_4M_t16','Rand 100\n4M'),
-               ('range_random_1000_2M_t16','Rand 1000\n2M'),
-               ('range_seq_100_4M_t16','Seq 100\n4M')], 'Large Scale (16t)'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'RANGE','ops_per_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],'RANGE','ops_per_sec') for t in tests]
@@ -270,17 +369,34 @@ def plot_range(df):
 # Plot 06: Batch Size Scaling
 # ═══════════════════════════════════════════════
 def plot_batch_scaling(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_batches = [1,10,100,1000,10000]
+    std_names = ['batch_1_10M_t8','batch_10_10M_t8','batch_100_10M_t8',
+                 'batch_1000_10M_t8','batch_10000_10M_t8']
+    large_batches = [1,100,1000]
+    large_names = ['batch_1_40M_t16','batch_100_40M_t16','batch_1000_40M_t16']
+    
+    # Check which data is available
+    std_avail = [(b, n) for b, n in zip(std_batches, std_names) 
+                 if val(df,'tidesdb',n,'PUT','ops_per_sec') > 0 or val(df,'rocksdb',n,'PUT','ops_per_sec') > 0]
+    large_avail = [(b, n) for b, n in zip(large_batches, large_names)
+                   if val(df,'tidesdb',n,'PUT','ops_per_sec') > 0 or val(df,'rocksdb',n,'PUT','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 06_batch_size_scaling.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append(([b for b,n in std_avail], [n for b,n in std_avail], 'Standard (10M, 8t)'))
+    if large_avail:
+        panels.append(([b for b,n in large_avail], [n for b,n in large_avail], 'Large Scale (40M, 16t)'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(8*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Batch Size Scaling — Write Throughput')
-    for ax, batches, names, title in [
-        (a1, [1,10,100,1000,10000],
-         ['batch_1_10M_t8','batch_10_10M_t8','batch_100_10M_t8',
-          'batch_1000_10M_t8','batch_10000_10M_t8'],
-         'Standard (10M, 8t)'),
-        (a2, [1,100,1000],
-         ['batch_1_40M_t16','batch_100_40M_t16','batch_1000_40M_t16'],
-         'Large Scale (40M, 16t)'),
-    ]:
+    
+    for ax, (batches, names, title) in zip(axes, panels):
         tv = [val(df,'tidesdb',n,'PUT','ops_per_sec') for n in names]
         rv = [val(df,'rocksdb',n,'PUT','ops_per_sec') for n in names]
         ax.plot(batches, tv, 'o-', color=TIDES, lw=2.5, ms=8, label='TidesDB', zorder=3)
@@ -292,10 +408,12 @@ def plot_batch_scaling(df):
         ax.legend()
         ax.set_axisbelow(True)
         for b, t, r in zip(batches, tv, rv):
-            ax.annotate(fmt_v(t), (b, t), textcoords='offset points',
-                        xytext=(0, 10), ha='center', fontsize=7, color=TIDES, fontweight='bold')
-            ax.annotate(fmt_v(r), (b, r), textcoords='offset points',
-                        xytext=(0, -14), ha='center', fontsize=7, color='#616161', fontweight='bold')
+            if t > 0:
+                ax.annotate(fmt_v(t), (b, t), textcoords='offset points',
+                            xytext=(0, 10), ha='center', fontsize=7, color=TIDES, fontweight='bold')
+            if r > 0:
+                ax.annotate(fmt_v(r), (b, r), textcoords='offset points',
+                            xytext=(0, -14), ha='center', fontsize=7, color='#616161', fontweight='bold')
     fig.tight_layout(rect=[0,0,1,.93])
     save(fig, '06_batch_size_scaling.png')
 
@@ -304,18 +422,32 @@ def plot_batch_scaling(df):
 # Plot 07: Value Size Impact
 # ═══════════════════════════════════════════════
 def plot_value_size(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(16, 6))
+    std_tests = [('write_small_values_50M_k16_v64_t8_b1000','64B val\n50M'),
+                 ('write_random_10M_t8_b1000','100B val\n10M'),
+                 ('write_large_values_1M_k256_v4096_t8_b1000','4KB val\n1M')]
+    large_tests = [('write_small_values_200M_k16_v64_t16_b1000','64B val\n200M'),
+                   ('write_random_40M_t16_b1000','100B val\n40M'),
+                   ('write_large_values_4M_k256_v4096_t16_b1000','4KB val\n4M')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],'PUT','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'PUT','ops_per_sec') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],'PUT','ops_per_sec') > 0 or val(df,'rocksdb',t[0],'PUT','ops_per_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 07_value_size_impact.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard (8 threads)'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale (16 threads)'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(8*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Value Size Impact on Write Throughput')
-    for ax, tests, title in [
-        (a1, [('write_small_values_50M_k16_v64_t8_b1000','64B val\n50M'),
-               ('write_random_10M_t8_b1000','100B val\n10M'),
-               ('write_large_values_1M_k256_v4096_t8_b1000','4KB val\n1M')],
-         'Standard (8t)'),
-        (a2, [('write_small_values_200M_k16_v64_t16_b1000','64B val\n200M'),
-               ('write_random_40M_t16_b1000','100B val\n40M'),
-               ('write_large_values_4M_k256_v4096_t16_b1000','4KB val\n4M')],
-         'Large Scale (16t)'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[1] for t in tests]
         tv = [val(df,'tidesdb',t[0],'PUT','ops_per_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],'PUT','ops_per_sec') for t in tests]
@@ -328,34 +460,56 @@ def plot_value_size(df):
 # Plot 08: Latency Overview (4-panel)
 # ═══════════════════════════════════════════════
 def plot_latency_overview(df):
-    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
-    fig.suptitle('Average Latency (us) — Lower is Better')
-    panels = [
-        (axes[0,0], 'Write Latency', [
+    all_panels = [
+        ('Write Latency', [
             ('write_seq_10M_t8_b1000','PUT','Seq\n10M'),
             ('write_random_10M_t8_b1000','PUT','Rand\n10M'),
             ('write_zipfian_5M_t8_b1000','PUT','Zipf\n5M'),
             ('write_seq_40M_t16_b1000','PUT','Seq\n40M'),
             ('write_random_40M_t16_b1000','PUT','Rand\n40M')]),
-        (axes[0,1], 'Read Latency', [
+        ('Read Latency', [
             ('read_random_10M_t8','GET','Read\n10M,8t'),
             ('read_random_40M_t16','GET','Read\n40M,16t'),
             ('mixed_random_5M_t8_b1000','GET','Mix GET\n5M,8t'),
             ('mixed_random_20M_t16_b1000','GET','Mix GET\n20M,16t')]),
-        (axes[1,0], 'Seek Latency', [
+        ('Seek Latency', [
             ('seek_random_5M_t8','SEEK','Rand\n5M,8t'),
             ('seek_seq_5M_t8','SEEK','Seq\n5M,8t'),
             ('seek_zipfian_5M_t8','SEEK','Zipf\n5M,8t'),
             ('seek_random_20M_t16','SEEK','Rand\n20M,16t'),
             ('seek_seq_20M_t16','SEEK','Seq\n20M,16t')]),
-        (axes[1,1], 'Range Scan Latency', [
+        ('Range Scan Latency', [
             ('range_random_100_1M_t8','RANGE','R100\n1M,8t'),
             ('range_random_1000_500K_t8','RANGE','R1000\n500K,8t'),
             ('range_seq_100_1M_t8','RANGE','S100\n1M,8t'),
             ('range_random_100_4M_t16','RANGE','R100\n4M,16t'),
             ('range_random_1000_2M_t16','RANGE','R1000\n2M,16t')]),
     ]
-    for ax, title, tests in panels:
+    
+    # Filter panels to only those with data, and filter tests within panels
+    panels = []
+    for title, tests in all_panels:
+        avail = [t for t in tests if val(df,'tidesdb',t[0],t[1],'avg_latency_us') > 0 or val(df,'rocksdb',t[0],t[1],'avg_latency_us') > 0]
+        if avail:
+            panels.append((title, avail))
+    
+    if not panels:
+        print('  - 08_latency_overview.png (no data, skipped)')
+        return
+    
+    # Dynamic layout
+    n = len(panels)
+    if n <= 2:
+        fig, axes = plt.subplots(1, n, figsize=(8*n, 6))
+        if n == 1:
+            axes = [axes]
+    else:
+        rows = (n + 1) // 2
+        fig, axes = plt.subplots(rows, 2, figsize=(18, 6*rows))
+        axes = axes.flatten()[:n]
+    
+    fig.suptitle('Average Latency (us) — Lower is Better')
+    for ax, (title, tests) in zip(axes, panels):
         lbl = [t[2] for t in tests]
         tv = [val(df,'tidesdb',t[0],t[1],'avg_latency_us') for t in tests]
         rv = [val(df,'rocksdb',t[0],t[1],'avg_latency_us') for t in tests]
@@ -368,9 +522,7 @@ def plot_latency_overview(df):
 # Plot 09: Latency Percentiles (6-panel)
 # ═══════════════════════════════════════════════
 def plot_latency_percentiles(df):
-    fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-    fig.suptitle('Latency Percentiles (us) — p50 / p95 / p99')
-    wklds = [
+    all_wklds = [
         ('write_seq_10M_t8_b1000','PUT','Seq Write (10M)'),
         ('write_random_10M_t8_b1000','PUT','Random Write (10M)'),
         ('read_random_10M_t8','GET','Random Read (10M)'),
@@ -378,8 +530,29 @@ def plot_latency_percentiles(df):
         ('range_random_100_1M_t8','RANGE','Range 100 (1M)'),
         ('delete_random_5M_t8_b1000','DELETE','Delete (5M)'),
     ]
-    for idx, (tn, op, title) in enumerate(wklds):
-        ax = axes[idx//3][idx%3]
+    
+    # Filter to available workloads
+    wklds = [w for w in all_wklds if val(df,'tidesdb',w[0],w[1],'p50_us') > 0 or val(df,'rocksdb',w[0],w[1],'p50_us') > 0]
+    
+    if not wklds:
+        print('  - 09_latency_percentiles.png (no data, skipped)')
+        return
+    
+    # Dynamic layout
+    n = len(wklds)
+    if n <= 3:
+        fig, axes = plt.subplots(1, n, figsize=(6*n, 6))
+        if n == 1:
+            axes = [axes]
+        else:
+            axes = list(axes)
+    else:
+        rows = (n + 2) // 3
+        fig, axes = plt.subplots(rows, 3, figsize=(20, 6*rows))
+        axes = axes.flatten()[:n]
+    
+    fig.suptitle('Latency Percentiles (us) — p50 / p95 / p99')
+    for ax, (tn, op, title) in zip(axes, wklds):
         pcts = ['p50_us','p95_us','p99_us']
         tv = [val(df,'tidesdb',tn,op,p) for p in pcts]
         rv = [val(df,'rocksdb',tn,op,p) for p in pcts]
@@ -392,22 +565,36 @@ def plot_latency_percentiles(df):
 # Plot 10: Write Amplification
 # ═══════════════════════════════════════════════
 def plot_write_amp(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
+    std_tests = [('write_seq_10M_t8_b1000','PUT','Seq\n10M'),
+                 ('write_random_10M_t8_b1000','PUT','Rand\n10M'),
+                 ('write_zipfian_5M_t8_b1000','PUT','Zipf\n5M'),
+                 ('write_small_values_50M_k16_v64_t8_b1000','PUT','Small\n50M'),
+                 ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large\n1M')]
+    large_tests = [('write_seq_40M_t16_b1000','PUT','Seq\n40M'),
+                   ('write_random_40M_t16_b1000','PUT','Rand\n40M'),
+                   ('write_zipfian_20M_t16_b1000','PUT','Zipf\n20M'),
+                   ('write_small_values_200M_k16_v64_t16_b1000','PUT','Small\n200M'),
+                   ('write_large_values_4M_k256_v4096_t16_b1000','PUT','Large\n4M')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],t[1],'write_amp') > 0 or val(df,'rocksdb',t[0],t[1],'write_amp') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],t[1],'write_amp') > 0 or val(df,'rocksdb',t[0],t[1],'write_amp') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 10_write_amplification.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard Scale'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(9*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Write Amplification — Lower is Better')
-    for ax, tests, title in [
-        (a1, [('write_seq_10M_t8_b1000','PUT','Seq\n10M'),
-               ('write_random_10M_t8_b1000','PUT','Rand\n10M'),
-               ('write_zipfian_5M_t8_b1000','PUT','Zipf\n5M'),
-               ('write_small_values_50M_k16_v64_t8_b1000','PUT','Small\n50M'),
-               ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large\n1M')],
-         'Standard Scale'),
-        (a2, [('write_seq_40M_t16_b1000','PUT','Seq\n40M'),
-               ('write_random_40M_t16_b1000','PUT','Rand\n40M'),
-               ('write_zipfian_20M_t16_b1000','PUT','Zipf\n20M'),
-               ('write_small_values_200M_k16_v64_t16_b1000','PUT','Small\n200M'),
-               ('write_large_values_4M_k256_v4096_t16_b1000','PUT','Large\n4M')],
-         'Large Scale'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[2] for t in tests]
         tv = [val(df,'tidesdb',t[0],t[1],'write_amp') for t in tests]
         rv = [val(df,'rocksdb',t[0],t[1],'write_amp') for t in tests]
@@ -420,9 +607,7 @@ def plot_write_amp(df):
 # Plot 11: Space Efficiency
 # ═══════════════════════════════════════════════
 def plot_space(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
-    fig.suptitle('Space Efficiency — DB Size & Amplification')
-    tests = [
+    all_tests = [
         ('write_seq_10M_t8_b1000','PUT','Seq 10M'),
         ('write_random_10M_t8_b1000','PUT','Rand 10M'),
         ('write_small_values_50M_k16_v64_t8_b1000','PUT','Small 50M'),
@@ -430,22 +615,24 @@ def plot_space(df):
         ('write_seq_40M_t16_b1000','PUT','Seq 40M'),
         ('write_random_40M_t16_b1000','PUT','Rand 40M'),
     ]
+    
+    tests = [t for t in all_tests if val(df,'tidesdb',t[0],t[1],'db_size_mb') > 0 or val(df,'rocksdb',t[0],t[1],'db_size_mb') > 0]
+    
+    if not tests:
+        print('  - 11_space_efficiency.png (no data, skipped)')
+        return
+    
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
+    fig.suptitle('Space Efficiency — DB Size & Amplification')
+    
     lbl = [t[2] for t in tests]
     paired_bars(a1, lbl,
                 [val(df,'tidesdb',t[0],t[1],'db_size_mb') for t in tests],
                 [val(df,'rocksdb',t[0],t[1],'db_size_mb') for t in tests],
                 'DB Size (MB)', 'On-Disk Database Size')
-    tests2 = [
-        ('write_seq_10M_t8_b1000','PUT','Seq 10M'),
-        ('write_random_10M_t8_b1000','PUT','Rand 10M'),
-        ('write_zipfian_5M_t8_b1000','PUT','Zipf 5M'),
-        ('write_seq_40M_t16_b1000','PUT','Seq 40M'),
-        ('write_random_40M_t16_b1000','PUT','Rand 40M'),
-    ]
-    lbl2 = [t[2] for t in tests2]
-    paired_bars(a2, lbl2,
-                [val(df,'tidesdb',t[0],t[1],'space_amp') for t in tests2],
-                [val(df,'rocksdb',t[0],t[1],'space_amp') for t in tests2],
+    paired_bars(a2, lbl,
+                [val(df,'tidesdb',t[0],t[1],'space_amp') for t in tests],
+                [val(df,'rocksdb',t[0],t[1],'space_amp') for t in tests],
                 'Space Amplification', 'Space Amplification (lower = better)', decimal=True)
     fig.tight_layout(rect=[0,0,1,.93])
     save(fig, '11_space_efficiency.png')
@@ -455,9 +642,7 @@ def plot_space(df):
 # Plot 12: Resource Usage (4-panel)
 # ═══════════════════════════════════════════════
 def plot_resources(df):
-    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
-    fig.suptitle('Resource Usage Comparison')
-    tests = [
+    all_tests = [
         ('write_seq_10M_t8_b1000','PUT','Seq 10M'),
         ('write_random_10M_t8_b1000','PUT','Rand 10M'),
         ('read_random_10M_t8','GET','Read 10M'),
@@ -465,6 +650,15 @@ def plot_resources(df):
         ('write_random_40M_t16_b1000','PUT','Rand 40M'),
         ('read_random_40M_t16','GET','Read 40M'),
     ]
+    
+    tests = [t for t in all_tests if val(df,'tidesdb',t[0],t[1],'peak_rss_mb') > 0 or val(df,'rocksdb',t[0],t[1],'peak_rss_mb') > 0]
+    
+    if not tests:
+        print('  - 12_resource_usage.png (no data, skipped)')
+        return
+    
+    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+    fig.suptitle('Resource Usage Comparison')
     lbl = [t[2] for t in tests]
     for ax, col, ylabel, title in [
         (axes[0,0], 'peak_rss_mb', 'Peak RSS (MB)', 'Memory Usage (Peak RSS)'),
@@ -483,20 +677,34 @@ def plot_resources(df):
 # Plot 13: Tail Latency (avg vs p99)
 # ═══════════════════════════════════════════════
 def plot_tail_latency(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
+    std_tests = [('write_seq_10M_t8_b1000','PUT','Seq'),
+                 ('write_random_10M_t8_b1000','PUT','Random'),
+                 ('write_zipfian_5M_t8_b1000','PUT','Zipfian'),
+                 ('write_large_values_1M_k256_v4096_t8_b1000','PUT','LargeVal')]
+    large_tests = [('write_seq_40M_t16_b1000','PUT','Seq'),
+                   ('write_random_40M_t16_b1000','PUT','Random'),
+                   ('write_zipfian_20M_t16_b1000','PUT','Zipfian'),
+                   ('write_large_values_4M_k256_v4096_t16_b1000','PUT','LargeVal')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],t[1],'avg_latency_us') > 0 or val(df,'rocksdb',t[0],t[1],'avg_latency_us') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],t[1],'avg_latency_us') > 0 or val(df,'rocksdb',t[0],t[1],'avg_latency_us') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 13_tail_latency.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard Scale'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(9*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Tail Latency: Average vs p99 (us)')
-    for ax, tests, title in [
-        (a1, [('write_seq_10M_t8_b1000','PUT','Seq'),
-               ('write_random_10M_t8_b1000','PUT','Random'),
-               ('write_zipfian_5M_t8_b1000','PUT','Zipfian'),
-               ('write_large_values_1M_k256_v4096_t8_b1000','PUT','LargeVal')],
-         'Standard Scale'),
-        (a2, [('write_seq_40M_t16_b1000','PUT','Seq'),
-               ('write_random_40M_t16_b1000','PUT','Random'),
-               ('write_zipfian_20M_t16_b1000','PUT','Zipfian'),
-               ('write_large_values_4M_k256_v4096_t16_b1000','PUT','LargeVal')],
-         'Large Scale'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         x = np.arange(len(tests))
         w = 0.18
         lbl = [t[2] for t in tests]
@@ -522,22 +730,36 @@ def plot_tail_latency(df):
 # Plot 14: Duration Comparison
 # ═══════════════════════════════════════════════
 def plot_duration(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
+    std_tests = [('write_seq_10M_t8_b1000','PUT','Seq Write\n10M'),
+                 ('write_random_10M_t8_b1000','PUT','Rand Write\n10M'),
+                 ('read_random_10M_t8','GET','Read\n10M'),
+                 ('write_small_values_50M_k16_v64_t8_b1000','PUT','Small\n50M'),
+                 ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large\n1M')]
+    large_tests = [('write_seq_40M_t16_b1000','PUT','Seq Write\n40M'),
+                   ('write_random_40M_t16_b1000','PUT','Rand Write\n40M'),
+                   ('read_random_40M_t16','GET','Read\n40M'),
+                   ('write_small_values_200M_k16_v64_t16_b1000','PUT','Small\n200M'),
+                   ('write_large_values_4M_k256_v4096_t16_b1000','PUT','Large\n4M')]
+    
+    std_avail = [t for t in std_tests if val(df,'tidesdb',t[0],t[1],'duration_sec') > 0 or val(df,'rocksdb',t[0],t[1],'duration_sec') > 0]
+    large_avail = [t for t in large_tests if val(df,'tidesdb',t[0],t[1],'duration_sec') > 0 or val(df,'rocksdb',t[0],t[1],'duration_sec') > 0]
+    
+    if not std_avail and not large_avail:
+        print('  - 14_duration_comparison.png (no data, skipped)')
+        return
+    
+    panels = []
+    if std_avail:
+        panels.append((std_avail, 'Standard Scale'))
+    if large_avail:
+        panels.append((large_avail, 'Large Scale'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(9*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Wall-Clock Duration (sec) — Lower is Better')
-    for ax, tests, title in [
-        (a1, [('write_seq_10M_t8_b1000','PUT','Seq Write\n10M'),
-               ('write_random_10M_t8_b1000','PUT','Rand Write\n10M'),
-               ('read_random_10M_t8','GET','Read\n10M'),
-               ('write_small_values_50M_k16_v64_t8_b1000','PUT','Small\n50M'),
-               ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large\n1M')],
-         'Standard Scale'),
-        (a2, [('write_seq_40M_t16_b1000','PUT','Seq Write\n40M'),
-               ('write_random_40M_t16_b1000','PUT','Rand Write\n40M'),
-               ('read_random_40M_t16','GET','Read\n40M'),
-               ('write_small_values_200M_k16_v64_t16_b1000','PUT','Small\n200M'),
-               ('write_large_values_4M_k256_v4096_t16_b1000','PUT','Large\n4M')],
-         'Large Scale'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[2] for t in tests]
         tv = [val(df,'tidesdb',t[0],t[1],'duration_sec') for t in tests]
         rv = [val(df,'rocksdb',t[0],t[1],'duration_sec') for t in tests]
@@ -550,20 +772,34 @@ def plot_duration(df):
 # Plot 15: Latency Variability (CV%)
 # ═══════════════════════════════════════════════
 def plot_cv(df):
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(18, 6))
+    write_tests = [('write_seq_10M_t8_b1000','PUT','Seq Write'),
+                   ('write_random_10M_t8_b1000','PUT','Rand Write'),
+                   ('write_zipfian_5M_t8_b1000','PUT','Zipf Write'),
+                   ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large Val')]
+    read_tests = [('read_random_10M_t8','GET','Rand Read'),
+                  ('seek_random_5M_t8','SEEK','Rand Seek'),
+                  ('seek_seq_5M_t8','SEEK','Seq Seek'),
+                  ('range_random_100_1M_t8','RANGE','Range 100')]
+    
+    write_avail = [t for t in write_tests if val(df,'tidesdb',t[0],t[1],'cv_percent') > 0 or val(df,'rocksdb',t[0],t[1],'cv_percent') > 0]
+    read_avail = [t for t in read_tests if val(df,'tidesdb',t[0],t[1],'cv_percent') > 0 or val(df,'rocksdb',t[0],t[1],'cv_percent') > 0]
+    
+    if not write_avail and not read_avail:
+        print('  - 15_latency_variability.png (no data, skipped)')
+        return
+    
+    panels = []
+    if write_avail:
+        panels.append((write_avail, 'Write Variability'))
+    if read_avail:
+        panels.append((read_avail, 'Read/Seek Variability'))
+    
+    fig, axes = plt.subplots(1, len(panels), figsize=(9*len(panels), 6))
+    if len(panels) == 1:
+        axes = [axes]
     fig.suptitle('Latency Variability (CV%) — Lower is More Consistent')
-    for ax, tests, title in [
-        (a1, [('write_seq_10M_t8_b1000','PUT','Seq Write'),
-               ('write_random_10M_t8_b1000','PUT','Rand Write'),
-               ('write_zipfian_5M_t8_b1000','PUT','Zipf Write'),
-               ('write_large_values_1M_k256_v4096_t8_b1000','PUT','Large Val')],
-         'Write Variability'),
-        (a2, [('read_random_10M_t8','GET','Rand Read'),
-               ('seek_random_5M_t8','SEEK','Rand Seek'),
-               ('seek_seq_5M_t8','SEEK','Seq Seek'),
-               ('range_random_100_1M_t8','RANGE','Range 100')],
-         'Read/Seek Variability'),
-    ]:
+    
+    for ax, (tests, title) in zip(axes, panels):
         lbl = [t[2] for t in tests]
         tv = [val(df,'tidesdb',t[0],t[1],'cv_percent') for t in tests]
         rv = [val(df,'rocksdb',t[0],t[1],'cv_percent') for t in tests]
