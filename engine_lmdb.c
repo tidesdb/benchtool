@@ -68,7 +68,8 @@ static int lmdb_open_impl(storage_engine_t **engine, const char *path,
         return -1;
     }
 
-    size_t map_size = config->memtable_size > 0 ? config->memtable_size : (size_t)10 * 1024 * 1024 * 1024;
+    size_t map_size =
+        config->memtable_size > 0 ? config->memtable_size : (size_t)10 * 1024 * 1024 * 1024;
     mdb_env_set_mapsize(handle->env, map_size);
 
     mdb_env_set_maxreaders(handle->env, config->num_threads > 0 ? config->num_threads * 2 : 128);
