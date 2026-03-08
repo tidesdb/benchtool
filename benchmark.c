@@ -15,6 +15,7 @@
  */
 #include "benchmark.h"
 
+#include <assert.h>
 #include <dirent.h>
 #include <math.h>
 #include <pthread.h>
@@ -29,15 +30,15 @@
 
 #ifdef HAVE_ROCKSDB
 #include <rocksdb/c.h>
-extern const char *rocksdb_version_str;
+extern const char* rocksdb_version_str;
 #endif
 
 #ifdef HAVE_LMDB
 #include <lmdb.h>
-extern const char *lmdb_version_str;
+extern const char* lmdb_version_str;
 #endif
 
-const char *get_engine_version(const char *engine_name)
+const char* get_engine_version(const char* engine_name)
 {
     if (strcmp(engine_name, "tidesdb") == 0)
     {
@@ -58,11 +59,11 @@ const char *get_engine_version(const char *engine_name)
     return "unknown";
 }
 
-static void append_debug_log(const char *db_path, const char *engine_name)
+static void append_debug_log(const char* db_path, const char* engine_name)
 {
     char log_path[2048];
     char output_file[256];
-    FILE *src = NULL;
+    FILE* src = NULL;
 
     /* determine log file path and output file based on engine */
     if (strcmp(engine_name, "tidesdb") == 0)
@@ -85,7 +86,7 @@ static void append_debug_log(const char *db_path, const char *engine_name)
     src = fopen(log_path, "r");
     if (!src) return; /* no log file exists */
 
-    FILE *dst = fopen(output_file, "a");
+    FILE* dst = fopen(output_file, "a");
     if (!dst)
     {
         fclose(src);
@@ -94,7 +95,7 @@ static void append_debug_log(const char *db_path, const char *engine_name)
 
     /* write separator with timestamp and engine name */
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
+    struct tm* tm_info = localtime(&now);
     char timestamp[64];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
     fprintf(dst, "\n========== %s [%s] %s ==========\n", engine_name, timestamp, db_path);
@@ -111,33 +112,108 @@ static void append_debug_log(const char *db_path, const char *engine_name)
     fclose(dst);
 }
 
-static double zipfian_next(int n, double theta)
+/**
+ *  calculates H(x) the continuous approximation of the discrete pmf.
+ *  @param x candidate
+ *
+ *  @return calculated h(x)
+ */
+double calc_continuous_approximation(double offset, double zipf_exponent, double x)
 {
-    static double alpha = 0.0;
-    static double zetan = 0.0;
-    static double eta = 0.0;
-
-    if (alpha != theta || zetan == 0.0)
-    {
-        alpha = theta;
-        zetan = 0.0;
-        for (int i = 1; i <= n; i++)
-        {
-            zetan += 1.0 / pow(i, theta);
-        }
-        eta = (1.0 - pow(2.0 / n, 1.0 - theta)) / (1.0 - 1.0 / zetan);
-    }
-
-    double u = (double)rand() / RAND_MAX;
-    double uz = u * zetan;
-
-    if (uz < 1.0) return 1;
-    if (uz < 1.0 + pow(0.5, theta)) return 2;
-
-    return 1 + (int)(n * pow(eta * u - eta + 1.0, alpha));
+    double h_x = pow(offset + x, 1 - zipf_exponent) / (1 - zipf_exponent);
+    return h_x;
 }
 
-static void generate_key(uint8_t *key, size_t key_size, int index, key_pattern_t pattern,
+/**
+ *  maps the point  u ∈ [0,1] into the total integrated mass.
+ *  @param hlow
+ *  @u - randomly generated value u ∈ [0,1)
+ *  @returns calculated area
+ */
+double cumulative_area(double hlow, double tot_area, double u)
+{
+    assert(u >= 0);
+
+    return hlow + (u * tot_area);
+}
+
+/**
+ * hinv - finds x by finding h inverse
+ * @param zipf_eponent zipf exponent(s)
+ * @param c_area cumulative area
+ *
+ * @return value of x retrieved from inversing H(x)
+ */
+double hinv(double zipf_exponent, double c_area)
+{
+    return floor(exp((log((1 - zipf_exponent) * c_area)) / (1 - zipf_exponent)));
+}
+
+/**
+ *  passes k through an acceptance test and returns 1 if value is
+ * accepted else 0.
+ *  @param hlow value of the cumulative intergal function at the lower bound.
+ *  @param off offset
+ *  @param c_area amount of probability mass the sample picks a random point from.
+ *  @param k candidate
+ *
+ *  @return 1 if accepted, 0 if rejected.
+ */
+int is_accepted(double hlow, double off, double zipf_exp, double c_area, double k)
+{
+    double l = hlow - pow(off + k, (-zipf_exp));
+
+    if (c_area >= l)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+/**
+ * applies Hörmann-Derflinger rejection-inversion sampling to generate a value that
+ * follows zipfian distribution
+ *  @param zipf_exponent Constant used to alter howmuch skew to apply. FOr zipfian distributions
+ * ~1.13. Should be > 1
+ *  @param off Offset(v) is a non-negative constant that shifts keyspace while preserving zipfian
+ * shape.
+ *  @param imax upper bound of the distribution. Values generated will be 1...imax. Should be > 0.
+ *
+ * @return generated 64 bit unsigned integer
+ */
+static uint64_t zipf_next(double zipf_exponent, double off, double imax)
+{
+    assert(zipf_exponent > 1);
+    assert(imax >= 1);
+    assert(off >= 0);
+
+    double xmin = 0.5;
+    double xmax = imax + 0.5;
+
+    // calculate hlow, hupp and tot_area
+    double hlow = calc_continuous_approximation(off, zipf_exponent, xmin);
+    double hupp = calc_continuous_approximation(off, zipf_exponent, xmax);
+    double tot_area = hupp - hlow;
+
+    // Find next uint64 zipf value
+    uint accepted = 0;
+    double u, k, c_area;
+
+    while (!accepted)
+    {
+        u = (double)rand() / (double)RAND_MAX;
+        c_area = cumulative_area(hlow, tot_area, u);
+        k = hinv(zipf_exponent, c_area);
+        accepted = is_accepted(hlow, off, zipf_exponent, c_area, k);
+    }
+
+    return (uint64_t)k;
+}
+
+static void generate_key(uint8_t* key, size_t key_size, int index, key_pattern_t pattern,
                          int max_operations)
 {
     uint64_t key_num = 0;
@@ -149,7 +225,7 @@ static void generate_key(uint8_t *key, size_t key_size, int index, key_pattern_t
     {
         case KEY_PATTERN_SEQUENTIAL:
             /* sequential use index directly for uniqueness */
-            snprintf((char *)key, key_size, "%0*d", available_digits, index);
+            snprintf((char*)key, key_size, "%0*d", available_digits, index);
             break;
 
         case KEY_PATTERN_RANDOM:
@@ -159,53 +235,48 @@ static void generate_key(uint8_t *key, size_t key_size, int index, key_pattern_t
             /* bit-reverse for pseudo-random distribution */
             key_num = ((key_num & 0xFFFF0000) >> 16) | ((key_num & 0x0000FFFF) << 16);
             key_num = ((key_num & 0xFF00FF00) >> 8) | ((key_num & 0x00FF00FF) << 8);
-            snprintf((char *)key, key_size, "%0*llx", available_digits,
-                     (unsigned long long)key_num);
+            snprintf((char*)key, key_size, "%0*llx", available_digits, (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_ZIPFIAN:
             /* zipfian distribution -- 80% of accesses to 20% of keys */
             /* intentionally creates duplicates for hot-key simulation */
-            key_num = (uint64_t)zipfian_next(max_operations, 0.99);
-            snprintf((char *)key, key_size, "%0*llu", available_digits,
-                     (unsigned long long)key_num);
+            key_num = zipf_next(1.3, 0.99, (double)max_operations);
+            snprintf((char*)key, key_size, "%0*llu", available_digits, (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_UNIFORM:
             /* true uniform random, may have collisions */
             key_num = ((uint64_t)rand() << 32) | rand();
-            snprintf((char *)key, key_size, "%0*llx", available_digits,
-                     (unsigned long long)key_num);
+            snprintf((char*)key, key_size, "%0*llx", available_digits, (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_TIMESTAMP:
             /* monotonically increasing timestamp-like keys */
             key_num = ((uint64_t)time(NULL) << 32) | index;
-            snprintf((char *)key, key_size, "%0*llx", available_digits,
-                     (unsigned long long)key_num);
+            snprintf((char*)key, key_size, "%0*llx", available_digits, (unsigned long long)key_num);
             break;
 
         case KEY_PATTERN_REVERSE:
             /* reverse sequential */
             key_num = max_operations - index;
-            snprintf((char *)key, key_size, "%0*llu", available_digits,
-                     (unsigned long long)key_num);
+            snprintf((char*)key, key_size, "%0*llu", available_digits, (unsigned long long)key_num);
             break;
 
         default:
             /* fallback to sequential */
-            snprintf((char *)key, key_size, "%0*d", available_digits, index);
+            snprintf((char*)key, key_size, "%0*d", available_digits, index);
             break;
     }
 }
 
 typedef struct
 {
-    benchmark_config_t *config;
-    storage_engine_t *engine;
+    benchmark_config_t* config;
+    storage_engine_t* engine;
     int thread_id;
     int ops_per_thread;
-    double *latencies;
+    double* latencies;
     int latency_count;
 } thread_context_t;
 
@@ -217,9 +288,9 @@ static double get_time_microseconds(void)
 }
 
 /* get memory usage from /proc/self/status */
-static void get_memory_usage(size_t *rss_bytes, size_t *vms_bytes)
+static void get_memory_usage(size_t* rss_bytes, size_t* vms_bytes)
 {
-    FILE *fp = fopen("/proc/self/status", "r");
+    FILE* fp = fopen("/proc/self/status", "r");
     if (!fp)
     {
         *rss_bytes = 0;
@@ -245,9 +316,9 @@ static void get_memory_usage(size_t *rss_bytes, size_t *vms_bytes)
 }
 
 /* get I/O statistics from /proc/self/io */
-static void get_io_stats(size_t *bytes_read, size_t *bytes_written)
+static void get_io_stats(size_t* bytes_read, size_t* bytes_written)
 {
-    FILE *fp = fopen("/proc/self/io", "r");
+    FILE* fp = fopen("/proc/self/io", "r");
     if (!fp)
     {
         *bytes_read = 0;
@@ -271,7 +342,7 @@ static void get_io_stats(size_t *bytes_read, size_t *bytes_written)
 }
 
 /* get CPU usage statistics */
-static void get_cpu_stats(double *user_time, double *system_time)
+static void get_cpu_stats(double* user_time, double* system_time)
 {
     struct rusage usage;
     if (getrusage(RUSAGE_SELF, &usage) == 0)
@@ -287,22 +358,22 @@ static void get_cpu_stats(double *user_time, double *system_time)
 }
 
 /* helper to check if we're in a column family directory */
-static int is_column_family_dir(const char *path)
+static int is_column_family_dir(const char* path)
 {
-    const char *last_slash = strrchr(path, '/');
+    const char* last_slash = strrchr(path, '/');
     if (!last_slash) return 0;
 
     return 1;
 }
 
 /* recursive calculate directory size, excluding temp files in column family dirs */
-static size_t get_directory_size_recursive(const char *path, int is_cf_dir)
+static size_t get_directory_size_recursive(const char* path, int is_cf_dir)
 {
-    DIR *dir = opendir(path);
+    DIR* dir = opendir(path);
     if (!dir) return 0;
 
     size_t total_size = 0;
-    struct dirent *entry;
+    struct dirent* entry;
     char filepath[1024];
 
     while ((entry = readdir(dir)) != NULL)
@@ -353,7 +424,7 @@ static size_t get_directory_size_recursive(const char *path, int is_cf_dir)
     return total_size;
 }
 
-static size_t get_directory_size(const char *path)
+static size_t get_directory_size(const char* path)
 {
     struct stat st;
     if (stat(path, &st) != 0)
@@ -379,7 +450,7 @@ static size_t get_directory_size(const char *path)
     return get_directory_size_recursive(path, 0);
 }
 
-static void generate_value(uint8_t *value, size_t value_size, int index)
+static void generate_value(uint8_t* value, size_t value_size, int index)
 {
     for (size_t i = 0; i < value_size; i++)
     {
@@ -387,14 +458,14 @@ static void generate_value(uint8_t *value, size_t value_size, int index)
     }
 }
 
-static int compare_double(const void *a, const void *b)
+static int compare_double(const void* a, const void* b)
 {
-    double da = *(const double *)a;
-    double db = *(const double *)b;
+    double da = *(const double*)a;
+    double db = *(const double*)b;
     return (da > db) - (da < db);
 }
 
-static void calculate_stats(double *latencies, int count, operation_stats_t *stats)
+static void calculate_stats(double* latencies, int count, operation_stats_t* stats)
 {
     if (count == 0) return;
 
@@ -433,11 +504,11 @@ static void calculate_stats(double *latencies, int count, operation_stats_t *sta
     stats->p99_latency_us = latencies[p99_idx];
 }
 
-static void *benchmark_put_thread(void *arg)
+static void* benchmark_put_thread(void* arg)
 {
-    thread_context_t *ctx = (thread_context_t *)arg;
-    uint8_t *key = malloc(ctx->config->key_size);
-    uint8_t *value = malloc(ctx->config->value_size);
+    thread_context_t* ctx = (thread_context_t*)arg;
+    uint8_t* key = malloc(ctx->config->key_size);
+    uint8_t* value = malloc(ctx->config->value_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
@@ -449,7 +520,7 @@ static void *benchmark_put_thread(void *arg)
         /* batched path -- group operations into transactions */
         for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
-            void *batch_ctx = NULL;
+            void* batch_ctx = NULL;
             double batch_start = get_time_microseconds();
 
             if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
@@ -498,10 +569,10 @@ static void *benchmark_put_thread(void *arg)
     return NULL;
 }
 
-static void *benchmark_get_thread(void *arg)
+static void* benchmark_get_thread(void* arg)
 {
-    thread_context_t *ctx = (thread_context_t *)arg;
-    uint8_t *key = malloc(ctx->config->key_size);
+    thread_context_t* ctx = (thread_context_t*)arg;
+    uint8_t* key = malloc(ctx->config->key_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
 
@@ -510,7 +581,7 @@ static void *benchmark_get_thread(void *arg)
         generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                      ctx->config->num_operations);
 
-        uint8_t *value = NULL;
+        uint8_t* value = NULL;
         size_t value_size = 0;
 
         double start = get_time_microseconds();
@@ -525,10 +596,10 @@ static void *benchmark_get_thread(void *arg)
     return NULL;
 }
 
-static void *benchmark_delete_thread(void *arg)
+static void* benchmark_delete_thread(void* arg)
 {
-    thread_context_t *ctx = (thread_context_t *)arg;
-    uint8_t *key = malloc(ctx->config->key_size);
+    thread_context_t* ctx = (thread_context_t*)arg;
+    uint8_t* key = malloc(ctx->config->key_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
@@ -540,7 +611,7 @@ static void *benchmark_delete_thread(void *arg)
         /* batched path -- group operations into transactions */
         for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
-            void *batch_ctx = NULL;
+            void* batch_ctx = NULL;
             double batch_start = get_time_microseconds();
 
             if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
@@ -599,15 +670,15 @@ static void *benchmark_delete_thread(void *arg)
     return NULL;
 }
 
-static void *benchmark_seek_thread(void *arg)
+static void* benchmark_seek_thread(void* arg)
 {
-    thread_context_t *ctx = (thread_context_t *)arg;
-    uint8_t *key = malloc(ctx->config->key_size);
+    thread_context_t* ctx = (thread_context_t*)arg;
+    uint8_t* key = malloc(ctx->config->key_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
 
     /* create iterator once per thread, reuse for all seeks */
-    void *iter = NULL;
+    void* iter = NULL;
     if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
     {
         free(key);
@@ -628,7 +699,7 @@ static void *benchmark_seek_thread(void *arg)
         {
             /* read the key to simulate real usage */
             /* note: iterator owns this memory, don't free it */
-            uint8_t *found_key = NULL;
+            uint8_t* found_key = NULL;
             size_t found_key_size = 0;
             ctx->engine->ops->iter_key(iter, &found_key, &found_key_size);
         }
@@ -643,16 +714,16 @@ static void *benchmark_seek_thread(void *arg)
     return NULL;
 }
 
-static void *benchmark_range_thread(void *arg)
+static void* benchmark_range_thread(void* arg)
 {
-    thread_context_t *ctx = (thread_context_t *)arg;
-    uint8_t *key = malloc(ctx->config->key_size);
+    thread_context_t* ctx = (thread_context_t*)arg;
+    uint8_t* key = malloc(ctx->config->key_size);
 
     int start_index = ctx->thread_id * ctx->ops_per_thread;
     int range_size = ctx->config->range_size;
 
     /* create iterator once per thread, reuse for all range queries */
-    void *iter = NULL;
+    void* iter = NULL;
     if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
     {
         fprintf(stderr, "[T%d iter_new failed] ", ctx->thread_id);
@@ -677,8 +748,8 @@ static void *benchmark_range_thread(void *arg)
         {
             /* read key and value to simulate real range query */
             /* note: iterator owns this memory, don't free it */
-            uint8_t *found_key = NULL;
-            uint8_t *found_value = NULL;
+            uint8_t* found_key = NULL;
+            uint8_t* found_value = NULL;
             size_t found_key_size = 0;
             size_t found_value_size = 0;
 
@@ -699,7 +770,7 @@ static void *benchmark_range_thread(void *arg)
     return NULL;
 }
 
-int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
+int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
 {
     *results = calloc(1, sizeof(benchmark_results_t));
     if (!*results) return -1;
@@ -707,7 +778,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
     (*results)->engine_name = config->engine_name;
     (*results)->config = *config;
 
-    const storage_engine_ops_t *ops = get_engine_ops(config->engine_name);
+    const storage_engine_ops_t* ops = get_engine_ops(config->engine_name);
     if (!ops)
     {
         fprintf(stderr, "Unknown engine: %s\n", config->engine_name);
@@ -715,7 +786,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         return -1;
     }
 
-    storage_engine_t *engine = NULL;
+    storage_engine_t* engine = NULL;
     if (ops->open(&engine, config->db_path, config) != 0)
     {
         fprintf(stderr, "Failed to open engine\n");
@@ -742,8 +813,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("  PUT: ");
         fflush(stdout);
 
-        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
-        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+        pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
 
@@ -788,7 +859,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             total_latencies += contexts[i].latency_count;
         }
 
-        double *all_latencies = malloc(total_latencies * sizeof(double));
+        double* all_latencies = malloc(total_latencies * sizeof(double));
         int offset = 0;
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -815,8 +886,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("  GET: ");
         fflush(stdout);
 
-        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
-        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+        pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
 
@@ -861,7 +932,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             total_latencies += contexts[i].latency_count;
         }
 
-        double *all_latencies = malloc(total_latencies * sizeof(double));
+        double* all_latencies = malloc(total_latencies * sizeof(double));
         int offset = 0;
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -887,8 +958,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("  DELETE: ");
         fflush(stdout);
 
-        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
-        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+        pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
 
@@ -942,7 +1013,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             total_latencies += contexts[i].latency_count;
         }
 
-        double *all_latencies = malloc(total_latencies * sizeof(double));
+        double* all_latencies = malloc(total_latencies * sizeof(double));
         int offset = 0;
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -976,8 +1047,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("  SEEK: ");
         fflush(stdout);
 
-        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
-        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+        pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
 
@@ -1033,7 +1104,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             total_latencies += contexts[i].latency_count;
         }
 
-        double *all_latencies = malloc(total_latencies * sizeof(double));
+        double* all_latencies = malloc(total_latencies * sizeof(double));
         int offset = 0;
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -1059,8 +1130,8 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
         printf("  RANGE: ");
         fflush(stdout);
 
-        pthread_t *threads = malloc(config->num_threads * sizeof(pthread_t));
-        thread_context_t *contexts = calloc(config->num_threads, sizeof(thread_context_t));
+        pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
+        thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
         int ops_per_thread = config->num_operations / config->num_threads;
 
@@ -1116,7 +1187,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
             total_latencies += contexts[i].latency_count;
         }
 
-        double *all_latencies = malloc(total_latencies * sizeof(double));
+        double* all_latencies = malloc(total_latencies * sizeof(double));
         int offset = 0;
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -1141,7 +1212,7 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
     printf("  ITER: ");
     fflush(stdout);
 
-    void *iter = NULL;
+    void* iter = NULL;
     if (engine->ops->iter_new(engine, &iter) == 0)
     {
         double start_time = get_time_microseconds();
@@ -1235,10 +1306,10 @@ int run_benchmark(benchmark_config_t *config, benchmark_results_t **results)
     return 0;
 }
 
-void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline)
+void generate_report(FILE* fp, benchmark_results_t* results, benchmark_results_t* baseline)
 {
     fprintf(fp, "\n**=== Benchmark Results ===**\n\n");
-    const char *version = get_engine_version(results->engine_name);
+    const char* version = get_engine_version(results->engine_name);
     fprintf(fp, "Engine: %s (v%s)\n", results->engine_name, version);
     fprintf(fp, "Operations: %d\n", results->config.num_operations);
     fprintf(fp, "Threads: %d\n", results->config.num_threads);
@@ -1358,7 +1429,7 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
 
     if (baseline)
     {
-        const char *baseline_version = get_engine_version(baseline->engine_name);
+        const char* baseline_version = get_engine_version(baseline->engine_name);
         fprintf(fp, "=== %s (v%s) Baseline Results ===\n\n", baseline->engine_name,
                 baseline_version);
 
@@ -1639,7 +1710,7 @@ void generate_report(FILE *fp, benchmark_results_t *results, benchmark_results_t
     }
 }
 
-static const char *workload_to_string(workload_type_t type)
+static const char* workload_to_string(workload_type_t type)
 {
     switch (type)
     {
@@ -1660,7 +1731,7 @@ static const char *workload_to_string(workload_type_t type)
     }
 }
 
-static const char *pattern_to_string(key_pattern_t pattern)
+static const char* pattern_to_string(key_pattern_t pattern)
 {
     switch (pattern)
     {
@@ -1681,14 +1752,14 @@ static const char *pattern_to_string(key_pattern_t pattern)
     }
 }
 
-void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *baseline,
+void generate_csv(FILE* fp, benchmark_results_t* results, benchmark_results_t* baseline,
                   int write_header)
 {
-    const char *engine = results->engine_name;
-    const char *baseline_engine = baseline ? baseline->engine_name : NULL;
-    const char *workload = workload_to_string(results->config.workload_type);
-    const char *pattern = pattern_to_string(results->config.key_pattern);
-    const char *test_name = results->config.test_name ? results->config.test_name : "";
+    const char* engine = results->engine_name;
+    const char* baseline_engine = baseline ? baseline->engine_name : NULL;
+    const char* workload = workload_to_string(results->config.workload_type);
+    const char* pattern = pattern_to_string(results->config.key_pattern);
+    const char* test_name = results->config.test_name ? results->config.test_name : "";
 
 #define CSV_CONFIG_FMT ",%s,%s,%d,%d,%d,%d,%d,%d,%d\n"
 #define CSV_CONFIG_ARGS(cfg, wl, pat)                                                       \
@@ -1844,9 +1915,9 @@ void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *b
 
     if (baseline)
     {
-        const char *baseline_workload = workload_to_string(baseline->config.workload_type);
-        const char *baseline_pattern = pattern_to_string(baseline->config.key_pattern);
-        const char *baseline_test_name =
+        const char* baseline_workload = workload_to_string(baseline->config.workload_type);
+        const char* baseline_pattern = pattern_to_string(baseline->config.key_pattern);
+        const char* baseline_test_name =
             baseline->config.test_name ? baseline->config.test_name : "";
 
         if (baseline->put_stats.ops_per_second > 0)
@@ -1988,7 +2059,7 @@ void generate_csv(FILE *fp, benchmark_results_t *results, benchmark_results_t *b
 #undef CSV_CONFIG_ARGS
 }
 
-void free_results(benchmark_results_t *results)
+void free_results(benchmark_results_t* results)
 {
     if (results) free(results);
 }
