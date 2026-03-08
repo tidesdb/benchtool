@@ -2,18 +2,38 @@
 
 # RocksDB Installation Script for Ubuntu (GCC 12 Compatible)
 # This script installs the latest version of RocksDB from source
-# Usage: ./install_rocksdb.sh [--with-jemalloc]
+# Usage: ./install_rocksdb.sh [--with-jemalloc] [--branch <branch_name>]
 
 set -e  # Exit on error
 
 # Parse command line arguments
 USE_JEMALLOC=false
-if [ "$1" == "--with-jemalloc" ]; then
-    USE_JEMALLOC=true
-fi
+BRANCH=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --with-jemalloc)
+            USE_JEMALLOC=true
+            shift
+            ;;
+        --branch)
+            BRANCH="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--with-jemalloc] [--branch <branch_name>]"
+            exit 1
+            ;;
+    esac
+done
 
 echo "========================================="
 echo "RocksDB Installation Script"
+if [ -n "$BRANCH" ]; then
+    echo "(branch: $BRANCH)"
+else
+    echo "(latest release tag)"
+fi
 if [ "$USE_JEMALLOC" = true ]; then
     echo "(with jemalloc support)"
 else
@@ -69,12 +89,18 @@ fi
 git clone https://github.com/facebook/rocksdb.git
 cd rocksdb
 
-# Get the latest release tag
-echo "Fetching latest release..."
-LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-echo "Latest RocksDB version: $LATEST_TAG"
-
-git checkout $LATEST_TAG
+# Checkout the requested branch or latest release tag
+if [ -n "$BRANCH" ]; then
+    echo "Checking out branch: $BRANCH"
+    git checkout $BRANCH
+    ROCKSDB_VERSION="branch-$BRANCH"
+else
+    echo "Fetching latest release..."
+    LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+    echo "Latest RocksDB version: $LATEST_TAG"
+    git checkout $LATEST_TAG
+    ROCKSDB_VERSION="$LATEST_TAG"
+fi
 
 # Build RocksDB with GCC 12 compatibility flags
 echo "Building RocksDB using $CPU_CORES parallel jobs..."
@@ -122,7 +148,7 @@ echo ""
 echo "========================================="
 echo "Installation Complete!"
 echo "========================================="
-echo "RocksDB version: $LATEST_TAG"
+echo "RocksDB version: $ROCKSDB_VERSION"
 if [ "$USE_JEMALLOC" = true ]; then
     echo "Built with jemalloc support: YES"
 else
@@ -149,3 +175,5 @@ echo "Installation finished successfully!"
 echo ""
 echo "Usage tip: To install with jemalloc support in the future, run:"
 echo "  $0 --with-jemalloc"
+echo "To install a specific branch:"
+echo "  $0 --branch 11.0.fb"

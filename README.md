@@ -152,6 +152,42 @@ Outputs 17 PNG plots to `benchmark_plots/` (TidesDB = blue, RocksDB = grey):
 | `16_sync_write_performance` | Synced (durable) write throughput and latency scaling |
 
 
+### TidesDB Version-to-Version Comparison Plots
+Compare benchmark results between two TidesDB versions to identify regressions and performance gains with `compare_tidesdb_versions.py`:
+
+```bash
+python3 compare_tidesdb_versions.py <newer_csv> <older_csv>
+```
+
+Example:
+```bash
+python3 compare_tidesdb_versions.py \
+  tidesdb_rocksdb_benchmark_results_20260217_113922.csv \
+  tidesdb_rocksdb_benchmark_results_20260216_061038.csv
+```
+
+Outputs 12 PNG plots and a text report to `version_comparison_plots/` (Newer = blue, Older = grey, Improvement = green, Regression = red):
+
+| Plot | Description |
+|------|-------------|
+| `00_change_summary` | Horizontal bar chart of throughput % change across all key benchmarks |
+| `01_write_comparison` | Sequential, random, zipfian write throughput side-by-side |
+| `02_mixed_comparison` | Mixed workload write and read side throughput |
+| `03_delete_comparison` | Delete throughput with batch size scaling |
+| `04_seek_comparison` | Random, sequential, zipfian seek throughput |
+| `05_range_comparison` | Range scan throughput (100/1000 keys, random/sequential) |
+| `06_batch_comparison` | Line chart of throughput vs batch size (1 to 10K) |
+| `07_value_size_comparison` | 64B vs 100B vs 4KB value write performance |
+| `08_latency_comparison` | Average latency across writes, reads, seeks, ranges, deletes |
+| `09_latency_percentiles_comparison` | p50/p95/p99 for random write, seek, and delete |
+| `10_write_amp_comparison` | Write amplification factor comparison |
+| `11_resource_comparison` | 4-panel: memory (RSS), disk writes, CPU%, database size |
+| `version_comparison_report.txt` | Text summary listing improvements, regressions, and unchanged benchmarks |
+
+Notes:
+- Dates are auto-extracted from filenames (e.g. `*_20260217_113922.csv`) for labeling.
+- Only TidesDB entries are compared; RocksDB rows and populate steps are filtered out.
+
 ## Usage Examples
 
 ### Basic Benchmarks
