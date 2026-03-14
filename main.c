@@ -15,6 +15,7 @@
  */
 #include <dirent.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -180,7 +181,7 @@ int main(int argc, char **argv)
                 config.engine_name = optarg;
                 break;
             case 'o':
-                config.num_operations = atoi(optarg);
+                config.num_operations = atoll(optarg);
                 break;
             case 'k':
                 config.key_size = atoi(optarg);
@@ -319,7 +320,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (config.num_operations <= 0 || config.key_size <= 0 || config.value_size <= 0 ||
+    if (config.num_operations <= 0LL || config.key_size <= 0 || config.value_size <= 0 ||
         config.num_threads <= 0 || config.batch_size <= 0)
     {
         fprintf(stderr, "Error: All numeric parameters must be positive\n");
@@ -330,7 +331,7 @@ int main(int argc, char **argv)
     printf("Configuration:\n");
     const char *version = get_engine_version(config.engine_name);
     printf("  Engine: %s (v%s)\n", config.engine_name, version);
-    printf("  Operations: %d\n", config.num_operations);
+    printf("  Operations: %" PRId64 "\n", config.num_operations);
     printf("  Key Size: %d bytes\n", config.key_size);
     printf("  Value Size: %d bytes\n", config.value_size);
     printf("  Threads: %d\n", config.num_threads);

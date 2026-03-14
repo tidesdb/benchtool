@@ -50,7 +50,7 @@ typedef enum
 typedef struct
 {
     const char *engine_name;
-    int num_operations;
+    int64_t num_operations;
     int key_size;
     int value_size;
     int num_threads;

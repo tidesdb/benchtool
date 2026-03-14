@@ -111,17 +111,6 @@ The benchtool has default runners such as
 
 ## Graphs
 
-### Generic CSV Graphs
-Generate image-only graphs from any benchtool CSV with `graphgen.py`:
-
-```bash
-python3 graphgen.py <csv_file> [output_dir]
-```
-
-Notes:
-- CSV includes `test_name` (from `--test-name`) to uniquely identify each run, including populate steps tagged with `_populate`.
-- Graphgen adapts to any CSV by checking available columns; it outputs throughput, latency averages + percentiles, variability (CV%) + stddev, resource usage (CPU/IO/memory/duration), amplification, and parameter sweep plots when the data exists.
-
 ### TidesDB vs RocksDB Comparison Plots
 Generate detailed comparison plots from `tidesdb_rocksdb.sh` CSV output with `plot_tidesdb_rocksdb.py`:
 
