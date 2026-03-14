@@ -17,6 +17,7 @@
 
 #include <assert.h>
 #include <dirent.h>
+#include <inttypes.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -213,8 +214,8 @@ static uint64_t zipf_next(double zipf_exponent, double off, double imax)
     return (uint64_t)k;
 }
 
-static void generate_key(uint8_t* key, size_t key_size, int index, key_pattern_t pattern,
-                         int max_operations)
+static void generate_key(uint8_t* key, size_t key_size, int64_t index, key_pattern_t pattern,
+                         int64_t max_operations)
 {
     uint64_t key_num = 0;
 
@@ -225,16 +226,20 @@ static void generate_key(uint8_t* key, size_t key_size, int index, key_pattern_t
     {
         case KEY_PATTERN_SEQUENTIAL:
             /* sequential use index directly for uniqueness */
-            snprintf((char*)key, key_size, "%0*d", available_digits, index);
+            snprintf((char*)key, key_size, "%0*" PRId64, available_digits, index);
             break;
 
         case KEY_PATTERN_RANDOM:
             /* use index directly in hex format to ensure uniqueness */
             /* shuffle bits for randomness while preserving uniqueness */
-            key_num = index;
-            /* bit-reverse for pseudo-random distribution */
-            key_num = ((key_num & 0xFFFF0000) >> 16) | ((key_num & 0x0000FFFF) << 16);
-            key_num = ((key_num & 0xFF00FF00) >> 8) | ((key_num & 0x00FF00FF) << 8);
+            key_num = (uint64_t)index;
+            /* byte-reverse for pseudo-random distribution (full 64-bit) */
+            key_num = ((key_num & 0xFFFFFFFF00000000ULL) >> 32) |
+                      ((key_num & 0x00000000FFFFFFFFULL) << 32);
+            key_num = ((key_num & 0xFFFF0000FFFF0000ULL) >> 16) |
+                      ((key_num & 0x0000FFFF0000FFFFULL) << 16);
+            key_num =
+                ((key_num & 0xFF00FF00FF00FF00ULL) >> 8) | ((key_num & 0x00FF00FF00FF00FFULL) << 8);
             snprintf((char*)key, key_size, "%0*llx", available_digits, (unsigned long long)key_num);
             break;
 
@@ -259,13 +264,13 @@ static void generate_key(uint8_t* key, size_t key_size, int index, key_pattern_t
 
         case KEY_PATTERN_REVERSE:
             /* reverse sequential */
-            key_num = max_operations - index;
+            key_num = (uint64_t)(max_operations - index);
             snprintf((char*)key, key_size, "%0*llu", available_digits, (unsigned long long)key_num);
             break;
 
         default:
             /* fallback to sequential */
-            snprintf((char*)key, key_size, "%0*d", available_digits, index);
+            snprintf((char*)key, key_size, "%0*" PRId64, available_digits, index);
             break;
     }
 }
@@ -275,7 +280,7 @@ typedef struct
     benchmark_config_t* config;
     storage_engine_t* engine;
     int thread_id;
-    int ops_per_thread;
+    int64_t ops_per_thread;
     double* latencies;
     int latency_count;
 } thread_context_t;
@@ -450,7 +455,7 @@ static size_t get_directory_size(const char* path)
     return get_directory_size_recursive(path, 0);
 }
 
-static void generate_value(uint8_t* value, size_t value_size, int index)
+static void generate_value(uint8_t* value, size_t value_size, int64_t index)
 {
     for (size_t i = 0; i < value_size; i++)
     {
@@ -510,7 +515,7 @@ static void* benchmark_put_thread(void* arg)
     uint8_t* key = malloc(ctx->config->key_size);
     uint8_t* value = malloc(ctx->config->value_size);
 
-    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
 
     /* we use use batched API if available, otherwise fall back to single operations */
@@ -518,17 +523,17 @@ static void* benchmark_put_thread(void* arg)
         ctx->engine->ops->batch_commit && batch_size > 1)
     {
         /* batched path -- group operations into transactions */
-        for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
+        for (int64_t i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
             void* batch_ctx = NULL;
             double batch_start = get_time_microseconds();
 
             if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
 
-            int batch_end =
+            int64_t batch_end =
                 (i + batch_size < ctx->ops_per_thread) ? i + batch_size : ctx->ops_per_thread;
 
-            for (int j = i; j < batch_end; j++)
+            for (int64_t j = i; j < batch_end; j++)
             {
                 generate_key(key, ctx->config->key_size, start_index + j, ctx->config->key_pattern,
                              ctx->config->num_operations);
@@ -549,7 +554,7 @@ static void* benchmark_put_thread(void* arg)
     else
     {
         /* single operation path (legacy) */
-        for (int i = 0; i < ctx->ops_per_thread; i++)
+        for (int64_t i = 0; i < ctx->ops_per_thread; i++)
         {
             generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                          ctx->config->num_operations);
@@ -574,9 +579,9 @@ static void* benchmark_get_thread(void* arg)
     thread_context_t* ctx = (thread_context_t*)arg;
     uint8_t* key = malloc(ctx->config->key_size);
 
-    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
 
-    for (int i = 0; i < ctx->ops_per_thread; i++)
+    for (int64_t i = 0; i < ctx->ops_per_thread; i++)
     {
         generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                      ctx->config->num_operations);
@@ -601,7 +606,7 @@ static void* benchmark_delete_thread(void* arg)
     thread_context_t* ctx = (thread_context_t*)arg;
     uint8_t* key = malloc(ctx->config->key_size);
 
-    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
     int batch_size = ctx->config->batch_size;
 
     /* we use batched API if available, otherwise fall back to single operations */
@@ -609,17 +614,17 @@ static void* benchmark_delete_thread(void* arg)
         ctx->engine->ops->batch_commit && batch_size > 1)
     {
         /* batched path -- group operations into transactions */
-        for (int i = 0; i < ctx->ops_per_thread; i += batch_size)
+        for (int64_t i = 0; i < ctx->ops_per_thread; i += batch_size)
         {
             void* batch_ctx = NULL;
             double batch_start = get_time_microseconds();
 
             if (ctx->engine->ops->batch_begin(ctx->engine, &batch_ctx) != 0) continue;
 
-            int batch_end =
+            int64_t batch_end =
                 (i + batch_size < ctx->ops_per_thread) ? i + batch_size : ctx->ops_per_thread;
 
-            for (int j = i; j < batch_end; j++)
+            for (int64_t j = i; j < batch_end; j++)
             {
                 generate_key(key, ctx->config->key_size, start_index + j, ctx->config->key_pattern,
                              ctx->config->num_operations);
@@ -645,7 +650,7 @@ static void* benchmark_delete_thread(void* arg)
     else
     {
         /* single operation path (legacy) */
-        for (int i = 0; i < ctx->ops_per_thread; i++)
+        for (int64_t i = 0; i < ctx->ops_per_thread; i++)
         {
             generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                          ctx->config->num_operations);
@@ -675,7 +680,7 @@ static void* benchmark_seek_thread(void* arg)
     thread_context_t* ctx = (thread_context_t*)arg;
     uint8_t* key = malloc(ctx->config->key_size);
 
-    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
 
     /* create iterator once per thread, reuse for all seeks */
     void* iter = NULL;
@@ -685,7 +690,7 @@ static void* benchmark_seek_thread(void* arg)
         return NULL;
     }
 
-    for (int i = 0; i < ctx->ops_per_thread; i++)
+    for (int64_t i = 0; i < ctx->ops_per_thread; i++)
     {
         generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                      ctx->config->num_operations);
@@ -719,7 +724,7 @@ static void* benchmark_range_thread(void* arg)
     thread_context_t* ctx = (thread_context_t*)arg;
     uint8_t* key = malloc(ctx->config->key_size);
 
-    int start_index = ctx->thread_id * ctx->ops_per_thread;
+    int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
     int range_size = ctx->config->range_size;
 
     /* create iterator once per thread, reuse for all range queries */
@@ -732,7 +737,7 @@ static void* benchmark_range_thread(void* arg)
         return NULL;
     }
 
-    for (int i = 0; i < ctx->ops_per_thread; i++)
+    for (int64_t i = 0; i < ctx->ops_per_thread; i++)
     {
         generate_key(key, ctx->config->key_size, start_index + i, ctx->config->key_pattern,
                      ctx->config->num_operations);
@@ -816,7 +821,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
         thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
-        int ops_per_thread = config->num_operations / config->num_threads;
+        int64_t ops_per_thread = config->num_operations / config->num_threads;
 
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -889,7 +894,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
         thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
-        int ops_per_thread = config->num_operations / config->num_threads;
+        int64_t ops_per_thread = config->num_operations / config->num_threads;
 
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -961,7 +966,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
         thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
-        int ops_per_thread = config->num_operations / config->num_threads;
+        int64_t ops_per_thread = config->num_operations / config->num_threads;
 
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -1050,7 +1055,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
         thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
-        int ops_per_thread = config->num_operations / config->num_threads;
+        int64_t ops_per_thread = config->num_operations / config->num_threads;
 
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -1133,7 +1138,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         pthread_t* threads = malloc(config->num_threads * sizeof(pthread_t));
         thread_context_t* contexts = calloc(config->num_threads, sizeof(thread_context_t));
 
-        int ops_per_thread = config->num_operations / config->num_threads;
+        int64_t ops_per_thread = config->num_operations / config->num_threads;
 
         for (int i = 0; i < config->num_threads; i++)
         {
@@ -1311,7 +1316,7 @@ void generate_report(FILE* fp, benchmark_results_t* results, benchmark_results_t
     fprintf(fp, "\n**=== Benchmark Results ===**\n\n");
     const char* version = get_engine_version(results->engine_name);
     fprintf(fp, "Engine: %s (v%s)\n", results->engine_name, version);
-    fprintf(fp, "Operations: %d\n", results->config.num_operations);
+    fprintf(fp, "Operations: %" PRId64 "\n", results->config.num_operations);
     fprintf(fp, "Threads: %d\n", results->config.num_threads);
     fprintf(fp, "Key Size: %d bytes\n", results->config.key_size);
     fprintf(fp, "Value Size: %d bytes\n\n", results->config.value_size);
@@ -1761,7 +1766,7 @@ void generate_csv(FILE* fp, benchmark_results_t* results, benchmark_results_t* b
     const char* pattern = pattern_to_string(results->config.key_pattern);
     const char* test_name = results->config.test_name ? results->config.test_name : "";
 
-#define CSV_CONFIG_FMT ",%s,%s,%d,%d,%d,%d,%d,%d,%d\n"
+#define CSV_CONFIG_FMT ",%s,%s,%d,%" PRId64 ",%d,%d,%d,%d,%d\n"
 #define CSV_CONFIG_ARGS(cfg, wl, pat)                                                       \
     wl, pat, (cfg)->num_threads, (cfg)->num_operations, (cfg)->batch_size, (cfg)->key_size, \
         (cfg)->value_size, (cfg)->range_size, (cfg)->sync_enabled

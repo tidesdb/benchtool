@@ -608,11 +608,6 @@ for alloc in $ALLOCATORS_TO_TEST; do
     log_master "    CSV:  ${RESULTS_DIR}/${alloc}_results.csv"
 done
 log_master ""
-log_master "To generate comparison graphs for each allocator:"
-for alloc in $ALLOCATORS_TO_TEST; do
-    log_master "  python3 graphgen.py ${RESULTS_DIR}/${alloc}_results.csv --output ${RESULTS_DIR}/${alloc}_graphs"
-done
-log_master ""
 
 # If we tested multiple allocators, provide comparison hints
 if [ $(echo "$ALLOCATORS_TO_TEST" | wc -w) -gt 1 ]; then

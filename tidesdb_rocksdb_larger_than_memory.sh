@@ -162,9 +162,14 @@ log() {
     echo "$1" | tee -a "$RESULTS"
 }
 
-FS_TYPE=$(df -T "$DB_PATH" 2>/dev/null | awk 'NR==2 {print $2}' || echo "unknown")
+DF_TARGET="$DB_PATH"
+if [ ! -e "$DF_TARGET" ]; then
+    DF_TARGET=$(dirname "$DB_PATH")
+fi
+FS_TYPE=$(df -T "$DF_TARGET" 2>/dev/null | awk 'NR==2 {print $2}' || echo "unknown")
 FS_TYPE=${FS_TYPE:-unknown}
-DISK_AVAIL=$(df -h "$DB_PATH" 2>/dev/null | awk 'NR==2 {print $4}' || echo "unknown")
+DISK_AVAIL=$(df -h "$DF_TARGET" 2>/dev/null | awk 'NR==2 {print $4}' || echo "unknown")
+DISK_AVAIL=${DISK_AVAIL:-unknown}
 
 log "*------------------------------------------*"
 log "RUNNER: Larger-Than-Memory Benchmark"
@@ -353,7 +358,7 @@ run_engine_pipeline() {
 
 # Estimate - dataset + write amplification overhead (~3x logical size is safe)
 ESTIMATED_DISK=$(awk "BEGIN {printf \"%.0f\", $DATASET_BYTES * 3}")
-AVAIL_BYTES=$(df --output=avail -B1 "$DB_PATH" 2>/dev/null | tail -1 || echo 0)
+AVAIL_BYTES=$(df --output=avail -B1 "$DF_TARGET" 2>/dev/null | tail -1 || echo 0)
 AVAIL_BYTES=$(echo "$AVAIL_BYTES" | tr -d ' ')
 
 if [ "$AVAIL_BYTES" -gt 0 ] 2>/dev/null && [ "$ESTIMATED_DISK" -gt "$AVAIL_BYTES" ] 2>/dev/null; then
@@ -393,6 +398,4 @@ log "Results:"
 log "  Text: $RESULTS"
 log "  CSV:  $CSV_FILE"
 log ""
-log "Plot with:"
-log "  python3 graphgen.py $CSV_FILE"
 log "*------------------------------------------*"
