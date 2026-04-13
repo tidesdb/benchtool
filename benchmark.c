@@ -94,14 +94,12 @@ static void append_debug_log(const char* db_path, const char* engine_name)
         return;
     }
 
-    /* write separator with timestamp and engine name */
     time_t now = time(NULL);
     struct tm* tm_info = localtime(&now);
     char timestamp[64];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
     fprintf(dst, "\n========== %s [%s] %s ==========\n", engine_name, timestamp, db_path);
 
-    /* copy contents */
     char buf[4096];
     size_t n;
     while ((n = fread(buf, 1, sizeof(buf), src)) > 0)
@@ -178,8 +176,8 @@ int is_accepted(double hlow, double off, double zipf_exp, double c_area, double 
  * applies Hörmann-Derflinger rejection-inversion sampling to generate a value that
  * follows zipfian distribution
  *  @param zipf_exponent Constant used to alter howmuch skew to apply. FOr zipfian distributions
- * ~1.13. Should be > 1
- *  @param off Offset(v) is a non-negative constant that shifts keyspace while preserving zipfian
+ * ~1.13. should be > 1
+ *  @param off offset(v) is a non-negative constant that shifts keyspace while preserving zipfian
  * shape.
  *  @param imax upper bound of the distribution. Values generated will be 1...imax. Should be > 0.
  *
@@ -219,7 +217,7 @@ static void generate_key(uint8_t* key, size_t key_size, int64_t index, key_patte
 {
     uint64_t key_num = 0;
 
-    /* ensure we have space for null terminator */
+    /* we ensure we have space for null terminator */
     int available_digits = (int)(key_size - 1); /* -1 for null terminator */
 
     switch (pattern)
@@ -230,7 +228,7 @@ static void generate_key(uint8_t* key, size_t key_size, int64_t index, key_patte
             break;
 
         case KEY_PATTERN_RANDOM:
-            /* use index directly in hex format to ensure uniqueness */
+            /* we use index directly in hex format to ensure uniqueness */
             /* shuffle bits for randomness while preserving uniqueness */
             key_num = (uint64_t)index;
             /* byte-reverse for pseudo-random distribution (full 64-bit) */
@@ -385,7 +383,7 @@ static size_t get_directory_size_recursive(const char* path, int is_cf_dir)
     {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
-        /* only skip temp files if we're in a column family directory */
+        /* we only skip temp files if we're in a column family directory */
         if (is_cf_dir)
         {
             size_t name_len = strlen(entry->d_name);
@@ -682,7 +680,7 @@ static void* benchmark_seek_thread(void* arg)
 
     int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
 
-    /* create iterator once per thread, reuse for all seeks */
+    /* w ecreate iterator once per thread, reuse for all seeks */
     void* iter = NULL;
     if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
     {
@@ -699,11 +697,11 @@ static void* benchmark_seek_thread(void* arg)
 
         ctx->engine->ops->iter_seek(iter, key, ctx->config->key_size);
 
-        /* check if seek was successful */
+        /* we check if seek was successful */
         if (ctx->engine->ops->iter_valid(iter))
         {
             /* read the key to simulate real usage */
-            /* note: iterator owns this memory, don't free it */
+            /* iterator owns this memory, don't free it */
             uint8_t* found_key = NULL;
             size_t found_key_size = 0;
             ctx->engine->ops->iter_key(iter, &found_key, &found_key_size);
@@ -727,7 +725,7 @@ static void* benchmark_range_thread(void* arg)
     int64_t start_index = (int64_t)ctx->thread_id * ctx->ops_per_thread;
     int range_size = ctx->config->range_size;
 
-    /* create iterator once per thread, reuse for all range queries */
+    /* we create iterator once per thread, we reuse for all range queries */
     void* iter = NULL;
     if (ctx->engine->ops->iter_new(ctx->engine, &iter) != 0)
     {
@@ -752,7 +750,7 @@ static void* benchmark_range_thread(void* arg)
         while (ctx->engine->ops->iter_valid(iter) && count < range_size)
         {
             /* read key and value to simulate real range query */
-            /* note: iterator owns this memory, don't free it */
+            /* the iterator owns this memory, don't free it */
             uint8_t* found_key = NULL;
             uint8_t* found_value = NULL;
             size_t found_key_size = 0;
@@ -799,7 +797,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         return -1;
     }
 
-    /* apply sync mode if supported */
+    /* we apply sync mode if supported */
     if (engine->ops->set_sync)
     {
         engine->ops->set_sync(engine, config->sync_enabled);
@@ -1207,7 +1205,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         free(threads);
         free(contexts);
 
-        /* range queries read range_size keys per operation */
+        /* we range queries read range_size keys per operation */
         (*results)->total_bytes_read += (size_t)config->num_operations * config->range_size *
                                         (config->key_size + config->value_size);
 
@@ -1250,7 +1248,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
         printf("not supported\n");
     }
 
-    /* capture final resource metrics */
+    /* we capture final resource metrics */
     size_t final_rss, final_vms, final_io_read, final_io_write;
     double final_cpu_user, final_cpu_system;
     double benchmark_end_time = get_time_microseconds();
@@ -1259,7 +1257,7 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
     get_io_stats(&final_io_read, &final_io_write);
     get_cpu_stats(&final_cpu_user, &final_cpu_system);
 
-    /* calc resource deltas */
+    /* we calc resource deltas */
     (*results)->resources.peak_rss_bytes = final_rss > baseline_rss ? final_rss : baseline_rss;
     (*results)->resources.peak_vms_bytes = final_vms > baseline_vms ? final_vms : baseline_vms;
     (*results)->resources.bytes_read = final_io_read - baseline_io_read;
@@ -1267,13 +1265,13 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
     (*results)->resources.cpu_user_time = final_cpu_user - baseline_cpu_user;
     (*results)->resources.cpu_system_time = final_cpu_system - baseline_cpu_system;
 
-    /* calc CPU percentage */
+    /* we calc CPU percentage */
     double total_wall_time = (benchmark_end_time - benchmark_start_time) / 1000000.0;
     double total_cpu_time =
         (*results)->resources.cpu_user_time + (*results)->resources.cpu_system_time;
     (*results)->resources.cpu_percent = (total_cpu_time / total_wall_time) * 100.0;
 
-    /* calc write and read amplification factors (before close) */
+    /* we calc write and read amplification factors (before close) */
     size_t logical_data_written = (*results)->total_bytes_written;
     size_t logical_data_read = (*results)->total_bytes_read;
 
@@ -1289,19 +1287,19 @@ int run_benchmark(benchmark_config_t* config, benchmark_results_t** results)
             (double)(*results)->resources.bytes_read / (double)logical_data_read;
     }
 
-    /* close database to ensure all data is flushed and compacted */
+    /* we close database to ensure all data is flushed and compacted */
     ops->close(engine);
 
-    /* append debug logs before database directory is cleaned up */
+    /* we append debug logs before database directory is cleaned up */
     if (config->debug_logging)
     {
         append_debug_log(config->db_path, config->engine_name);
     }
 
-    /* get storage size after close for accurate space amplification */
+    /* we get storage size after close for accurate space amplification */
     (*results)->resources.storage_size_bytes = get_directory_size(config->db_path);
 
-    /* calc space amplification after close */
+    /* we calc space amplification after close */
     if ((*results)->net_logical_data_size > 0 && (*results)->resources.storage_size_bytes > 0)
     {
         (*results)->resources.space_amplification =
@@ -1771,7 +1769,7 @@ void generate_csv(FILE* fp, benchmark_results_t* results, benchmark_results_t* b
     wl, pat, (cfg)->num_threads, (cfg)->num_operations, (cfg)->batch_size, (cfg)->key_size, \
         (cfg)->value_size, (cfg)->range_size, (cfg)->sync_enabled
 
-    /* Write CSV header only if file is empty/new */
+    /* we write CSV header only if file is empty/new */
     if (write_header)
     {
         fprintf(fp,

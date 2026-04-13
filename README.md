@@ -37,6 +37,7 @@ cmake -B build \
 | `ROCKSDB_MAJOR` | RocksDB major version number (for version display) |
 | `ROCKSDB_MINOR` | RocksDB minor version number |
 | `ROCKSDB_PATCH` | RocksDB patch version number |
+| `BENCHTOOL_WITH_S3` | Enable the `--object-store s3` option. Requires TidesDB to be built with `-DTIDESDB_WITH_S3=ON` so that `tidesdb_objstore_s3_create` is exported. |
 
 > **Note:** When `TIDESDB_BUILD_DIR` contains `tidesdb_version.h`, CMake automatically creates a symlink so the include path `<tidesdb/tidesdb_version.h>` resolves correctly.
 
@@ -86,6 +87,121 @@ Options:
   --debug                        Enable debug logging for storage engines
   --use-btree                    Use B+tree format for klog (TidesDB only)
   -h, --help                     Show help message
+```
+
+### TidesDB Engine-Level Configuration
+
+These map onto fields of `tidesdb_config_t` and are passed to `tidesdb_open`. When omitted, benchtool keeps its existing defaults (single flush/compaction thread, log-to-file enabled) for backward compatibility with prior runs.
+
+| Option | TidesDB field | Default |
+|--------|---------------|---------|
+| `--num-flush-threads <n>` | `num_flush_threads` | benchtool: `1` (TidesDB lib default: `2`) |
+| `--num-compaction-threads <n>` | `num_compaction_threads` | benchtool: `1` (TidesDB lib default: `2`) |
+| `--max-open-sstables <n>` | `max_open_sstables` | `256` |
+| `--max-memory-usage <bytes>` | `max_memory_usage` | `0` (auto, 50% of RAM) |
+| `--log-to-file <0\|1>` | `log_to_file` | `1` (write `LOG` file in db dir) |
+
+### TidesDB Column-Family Tuning
+
+Additional knobs on `tidesdb_column_family_config_t` not previously exposed:
+
+| Option | TidesDB field | Default |
+|--------|---------------|---------|
+| `--compression <algo>` | `compression_algorithm` | `lz4` (also: `none`, `lz4fast`, `zstd`, `snappy`) |
+| `--skip-list-max-level <n>` | `skip_list_max_level` | `12` |
+| `--skip-list-probability <p>` | `skip_list_probability` | `0.25` |
+| `--level-size-ratio <n>` | `level_size_ratio` | `10` |
+| `--sync-mode <mode>` | `sync_mode` | derived from `--sync` (use `none`, `full`, or `interval`) |
+| `--sync-interval-us <us>` | `sync_interval_us` | `128000` (only relevant for `interval`) |
+
+### TidesDB Unified Memtable Mode
+
+Unified memtable replaces all per-CF skip lists and WALs with a single shared skip list and single WAL at the database level, reducing N WAL writes per multi-CF transaction to one.
+
+| Option | TidesDB field | Default |
+|--------|---------------|---------|
+| `--unified-memtable` | `unified_memtable = 1` | off |
+| `--unified-memtable-size <bytes>` | `unified_memtable_write_buffer_size` | `0` → 64 MB |
+| `--unified-memtable-skip-list-max-level <n>` | `unified_memtable_skip_list_max_level` | `0` → 12 |
+| `--unified-memtable-skip-list-probability <p>` | `unified_memtable_skip_list_probability` | `0` → 0.25 |
+| `--unified-memtable-sync-mode <mode>` | `unified_memtable_sync_mode` | `none` |
+| `--unified-memtable-sync-interval-us <us>` | `unified_memtable_sync_interval_us` | `0` |
+
+```bash
+# Run a write workload with unified memtable enabled
+./benchtool -e tidesdb --unified-memtable -w write -o 5000000
+
+# Pair with a custom sync mode + interval
+./benchtool -e tidesdb --unified-memtable \
+  --unified-memtable-sync-mode interval \
+  --unified-memtable-sync-interval-us 200000 -o 1000000
+```
+
+> **Note:** Even though benchtool only uses one column family, unified memtable still affects WAL layout and write batching, so the option is useful for measuring its overhead in the single-CF case.
+
+### TidesDB Object Store Mode
+
+Object store mode places SSTables in a remote (or filesystem-backed) object store and uses local disk as a cache. Setting `--object-store` automatically enables unified memtable mode (as required by TidesDB).
+
+Two backends are supported:
+- `fs` — local filesystem connector, useful for testing (always available).
+- `s3` — S3 / MinIO / GCS-compatible connector, requires `-DBENCHTOOL_WITH_S3=ON` at CMake time **and** TidesDB built with `-DTIDESDB_WITH_S3=ON`.
+
+| Option | Where it lands | Default |
+|--------|---------------|---------|
+| `--object-store <none\|fs\|s3>` | selects connector | `none` |
+| `--object-store-fs-path <dir>` | `tidesdb_objstore_fs_create(root_dir)` | required for `fs` |
+| `--s3-endpoint <host[:port]>` | `tidesdb_objstore_s3_create` | required for `s3` |
+| `--s3-bucket <name>` | s3 connector | required |
+| `--s3-prefix <prefix>` | s3 connector | unset |
+| `--s3-access-key <key>` | s3 connector | required |
+| `--s3-secret-key <key>` | s3 connector | required |
+| `--s3-region <region>` | s3 connector | unset (use for AWS, leave unset for MinIO) |
+| `--s3-no-ssl` | `use_ssl = 0` | HTTPS by default |
+| `--s3-path-style` | `use_path_style = 1` | virtual-hosted (set for MinIO) |
+| `--object-local-cache-path <dir>` | `tidesdb_objstore_config_t.local_cache_path` | db_path |
+| `--object-local-cache-max-bytes <b>` | `local_cache_max_bytes` | `0` (unlimited) |
+| `--object-cache-on-read <0\|1>` | `cache_on_read` | `1` |
+| `--object-cache-on-write <0\|1>` | `cache_on_write` | `1` |
+| `--object-max-concurrent-uploads <n>` | `max_concurrent_uploads` | `4` |
+| `--object-max-concurrent-downloads <n>` | `max_concurrent_downloads` | `8` |
+| `--object-multipart-threshold <bytes>` | `multipart_threshold` | 64 MB |
+| `--object-multipart-part-size <bytes>` | `multipart_part_size` | 8 MB |
+| `--object-sync-manifest <0\|1>` | `sync_manifest_to_object` | `1` |
+| `--object-replicate-wal <0\|1>` | `replicate_wal` | `1` |
+| `--object-wal-upload-sync <0\|1>` | `wal_upload_sync` | `0` |
+| `--object-wal-sync-threshold <bytes>` | `wal_sync_threshold_bytes` | 1 MB |
+| `--object-wal-sync-on-commit <0\|1>` | `wal_sync_on_commit` | `0` (RPO=0 when `1`) |
+| `--object-replica-mode <0\|1>` | `replica_mode` | `0` |
+| `--object-replica-sync-interval-us <us>` | `replica_sync_interval_us` | 5 000 000 (5 s) |
+| `--object-replica-replay-wal <0\|1>` | `replica_replay_wal` | `1` |
+| `--object-lazy-compaction <0\|1>` | per-CF `object_lazy_compaction` | `0` |
+| `--object-prefetch-compaction <0\|1>` | per-CF `object_prefetch_compaction` | `1` |
+
+```bash
+# Local filesystem connector — exercises the object store code path without needing S3
+./benchtool -e tidesdb \
+  --object-store fs --object-store-fs-path /var/tmp/tidesdb-objs \
+  -w write -o 1000000
+
+# MinIO (local, HTTP, path-style URLs)
+./benchtool -e tidesdb \
+  --object-store s3 \
+  --s3-endpoint localhost:9000 --s3-bucket tidesdb-bench \
+  --s3-access-key minioadmin --s3-secret-key minioadmin \
+  --s3-no-ssl --s3-path-style \
+  --object-local-cache-max-bytes $((512 * 1024 * 1024)) \
+  --object-max-concurrent-uploads 8 \
+  -w write -o 100000
+
+# AWS S3 with sync-on-commit replication (RPO=0)
+./benchtool -e tidesdb \
+  --object-store s3 \
+  --s3-endpoint s3.amazonaws.com --s3-bucket my-tidesdb-bucket \
+  --s3-region us-east-1 \
+  --s3-access-key $AWS_ACCESS_KEY_ID --s3-secret-key $AWS_SECRET_ACCESS_KEY \
+  --object-wal-sync-on-commit 1 \
+  -w write -o 500000
 ```
 
 ## Runners

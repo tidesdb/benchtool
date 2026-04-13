@@ -77,11 +77,65 @@ static void print_usage(const char *prog)
     printf("  --block-indexes           Enable block indexes\n");
     printf("  --no-block-indexes        Disable block indexes\n");
     printf("  --debug                   Enable debug logging for storage engines\n");
-    printf("  -h, --help                Show this help message\n\n");
+    printf("  --use-btree               Use B+tree format for klog (TidesDB)\n");
+    printf("\nTidesDB engine-level configuration:\n");
+    printf("  --num-flush-threads <n>          Flush thread pool size (default 1)\n");
+    printf("  --num-compaction-threads <n>     Compaction thread pool size (default 1)\n");
+    printf("  --max-open-sstables <n>          Max cached SSTable structures (default 256)\n");
+    printf("  --max-memory-usage <bytes>       Global memory limit (0 = auto, 50%% of RAM)\n");
+    printf("  --log-to-file <0|1>              Log to file vs stderr (default 1)\n");
+    printf("\nTidesDB column-family tuning:\n");
+    printf("  --compression <algo>             none|lz4|lz4fast|zstd|snappy (default lz4)\n");
+    printf("  --skip-list-max-level <n>        Skip list max level (default 12)\n");
+    printf("  --skip-list-probability <p>      Skip list probability (default 0.25)\n");
+    printf("  --level-size-ratio <n>           Level size multiplier (default 10)\n");
+    printf("  --sync-mode <mode>               none|full|interval (overrides --sync)\n");
+    printf("  --sync-interval-us <us>          Sync interval (default 128000us)\n");
+    printf("\nTidesDB unified memtable mode:\n");
+    printf("  --unified-memtable               Enable unified memtable (single shared WAL)\n");
+    printf("  --unified-memtable-size <bytes>  Unified write buffer size (0 = default 64MB)\n");
+    printf("  --unified-memtable-skip-list-max-level <n>     0 = default 12\n");
+    printf("  --unified-memtable-skip-list-probability <p>   0 = default 0.25\n");
+    printf("  --unified-memtable-sync-mode <mode>            none|full|interval\n");
+    printf("  --unified-memtable-sync-interval-us <us>       Sync interval (microseconds)\n");
+    printf("\nTidesDB object store mode (auto-enables unified memtable):\n");
+    printf("  --object-store <none|fs|s3>      Backend (default none)\n");
+    printf("  --object-store-fs-path <dir>     Root dir for filesystem backend\n");
+    printf("  --s3-endpoint <host[:port]>      e.g. s3.amazonaws.com or minio.local:9000\n");
+    printf("  --s3-bucket <name>               Bucket name\n");
+    printf("  --s3-prefix <prefix>             Optional key prefix (e.g. 'production/db1/')\n");
+    printf("  --s3-access-key <key>            Access key ID\n");
+    printf("  --s3-secret-key <key>            Secret access key\n");
+    printf("  --s3-region <region>             AWS region (NULL for MinIO)\n");
+    printf("  --s3-no-ssl                      Use HTTP instead of HTTPS\n");
+    printf("  --s3-path-style                  Use path-style URLs (required for MinIO)\n");
+    printf("  --object-local-cache-path <dir>  Local cache directory (default db_path)\n");
+    printf("  --object-local-cache-max-bytes <b>  Max local cache size (0 = unlimited)\n");
+    printf("  --object-cache-on-read <0|1>     Cache downloaded files (default 1)\n");
+    printf("  --object-cache-on-write <0|1>    Keep local copy after upload (default 1)\n");
+    printf("  --object-max-concurrent-uploads <n>     (default 4)\n");
+    printf("  --object-max-concurrent-downloads <n>   (default 8)\n");
+    printf("  --object-multipart-threshold <bytes>    (default 64MB)\n");
+    printf("  --object-multipart-part-size <bytes>    (default 8MB)\n");
+    printf("  --object-sync-manifest <0|1>            Upload MANIFEST after compaction\n");
+    printf("  --object-replicate-wal <0|1>            Upload closed WAL segments\n");
+    printf("  --object-wal-upload-sync <0|1>          Block flush on WAL upload\n");
+    printf("  --object-wal-sync-threshold <bytes>     Active-WAL sync threshold (default 1MB)\n");
+    printf("  --object-wal-sync-on-commit <0|1>       RPO=0 replication\n");
+    printf("  --object-replica-mode <0|1>             Read-only replica mode\n");
+    printf("  --object-replica-sync-interval-us <us>  MANIFEST poll interval (default 5s)\n");
+    printf("  --object-replica-replay-wal <0|1>       Replay WAL on replicas (default 1)\n");
+    printf("  --object-lazy-compaction <0|1>          Less aggressive compaction (per-CF)\n");
+    printf("  --object-prefetch-compaction <0|1>      Parallel input prefetch (per-CF)\n");
+    printf("\n  -h, --help                Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s -e tidesdb -o 1000000 -k 16 -v 100\n", prog);
     printf("  %s -e tidesdb -c -o 500000 -t 4\n", prog);
     printf("  %s -e rocksdb -w write -o 1000000\n", prog);
+    printf("  %s -e tidesdb --unified-memtable -o 1000000\n", prog);
+    printf("  %s -e tidesdb --object-store fs --object-store-fs-path /tmp/objs -o 100000\n", prog);
+    printf("  %s -e tidesdb --compression zstd --sync-mode interval --sync-interval-us 500000\n",
+           prog);
 }
 
 int main(int argc, char **argv)
@@ -115,7 +169,52 @@ int main(int argc, char **argv)
                                  .block_index_prefix_len = 16,
                                  .klog_value_threshold = 512,
                                  .debug_logging = 0,
-                                 .use_btree = 0};
+                                 .use_btree = 0,
+                                 .num_flush_threads = 0,
+                                 .num_compaction_threads = 0,
+                                 .max_open_sstables = 0,
+                                 .max_memory_usage = 0,
+                                 .log_to_file = 0,
+                                 .compression_algorithm = NULL,
+                                 .skip_list_max_level = 0,
+                                 .skip_list_probability = 0.0f,
+                                 .level_size_ratio = 0,
+                                 .sync_mode = NULL,
+                                 .sync_interval_us = 0,
+                                 .unified_memtable = 0,
+                                 .unified_memtable_write_buffer_size = 0,
+                                 .unified_memtable_skip_list_max_level = 0,
+                                 .unified_memtable_skip_list_probability = 0.0f,
+                                 .unified_memtable_sync_mode = NULL,
+                                 .unified_memtable_sync_interval_us = 0,
+                                 .object_store_backend = NULL,
+                                 .object_store_fs_path = NULL,
+                                 .s3_endpoint = NULL,
+                                 .s3_bucket = NULL,
+                                 .s3_prefix = NULL,
+                                 .s3_access_key = NULL,
+                                 .s3_secret_key = NULL,
+                                 .s3_region = NULL,
+                                 .s3_use_ssl = 1,
+                                 .s3_use_path_style = 0,
+                                 .object_local_cache_path = NULL,
+                                 .object_local_cache_max_bytes = 0,
+                                 .object_cache_on_read = -1,
+                                 .object_cache_on_write = -1,
+                                 .object_max_concurrent_uploads = 0,
+                                 .object_max_concurrent_downloads = 0,
+                                 .object_multipart_threshold = 0,
+                                 .object_multipart_part_size = 0,
+                                 .object_sync_manifest = -1,
+                                 .object_replicate_wal = -1,
+                                 .object_wal_upload_sync = -1,
+                                 .object_wal_sync_threshold_bytes = 0,
+                                 .object_wal_sync_on_commit = -1,
+                                 .object_replica_mode = -1,
+                                 .object_replica_sync_interval_us = 0,
+                                 .object_replica_replay_wal = -1,
+                                 .object_lazy_compaction = -1,
+                                 .object_prefetch_compaction = -1};
 
     enum
     {
@@ -129,7 +228,52 @@ int main(int argc, char **argv)
         OPT_BLOCK_INDEX_PREFIX_LEN,
         OPT_KLOG_VALUE_THRESHOLD,
         OPT_DEBUG,
-        OPT_USE_BTREE
+        OPT_USE_BTREE,
+        OPT_NUM_FLUSH_THREADS,
+        OPT_NUM_COMPACTION_THREADS,
+        OPT_MAX_OPEN_SSTABLES,
+        OPT_MAX_MEMORY_USAGE,
+        OPT_LOG_TO_FILE,
+        OPT_COMPRESSION,
+        OPT_SKIP_LIST_MAX_LEVEL,
+        OPT_SKIP_LIST_PROBABILITY,
+        OPT_LEVEL_SIZE_RATIO,
+        OPT_SYNC_MODE,
+        OPT_SYNC_INTERVAL_US,
+        OPT_UNIFIED_MEMTABLE,
+        OPT_UNIFIED_MEMTABLE_SIZE,
+        OPT_UNIFIED_MEMTABLE_SKIP_LIST_MAX_LEVEL,
+        OPT_UNIFIED_MEMTABLE_SKIP_LIST_PROBABILITY,
+        OPT_UNIFIED_MEMTABLE_SYNC_MODE,
+        OPT_UNIFIED_MEMTABLE_SYNC_INTERVAL_US,
+        OPT_OBJECT_STORE,
+        OPT_OBJECT_STORE_FS_PATH,
+        OPT_S3_ENDPOINT,
+        OPT_S3_BUCKET,
+        OPT_S3_PREFIX,
+        OPT_S3_ACCESS_KEY,
+        OPT_S3_SECRET_KEY,
+        OPT_S3_REGION,
+        OPT_S3_NO_SSL,
+        OPT_S3_PATH_STYLE,
+        OPT_OBJECT_LOCAL_CACHE_PATH,
+        OPT_OBJECT_LOCAL_CACHE_MAX_BYTES,
+        OPT_OBJECT_CACHE_ON_READ,
+        OPT_OBJECT_CACHE_ON_WRITE,
+        OPT_OBJECT_MAX_CONCURRENT_UPLOADS,
+        OPT_OBJECT_MAX_CONCURRENT_DOWNLOADS,
+        OPT_OBJECT_MULTIPART_THRESHOLD,
+        OPT_OBJECT_MULTIPART_PART_SIZE,
+        OPT_OBJECT_SYNC_MANIFEST,
+        OPT_OBJECT_REPLICATE_WAL,
+        OPT_OBJECT_WAL_UPLOAD_SYNC,
+        OPT_OBJECT_WAL_SYNC_THRESHOLD,
+        OPT_OBJECT_WAL_SYNC_ON_COMMIT,
+        OPT_OBJECT_REPLICA_MODE,
+        OPT_OBJECT_REPLICA_SYNC_INTERVAL_US,
+        OPT_OBJECT_REPLICA_REPLAY_WAL,
+        OPT_OBJECT_LAZY_COMPACTION,
+        OPT_OBJECT_PREFETCH_COMPACTION
     };
 
     static struct option long_options[] = {
@@ -166,6 +310,56 @@ int main(int argc, char **argv)
         {"klog_value_threshold", required_argument, 0, OPT_KLOG_VALUE_THRESHOLD},
         {"debug", no_argument, 0, OPT_DEBUG},
         {"use-btree", no_argument, 0, OPT_USE_BTREE},
+        {"num-flush-threads", required_argument, 0, OPT_NUM_FLUSH_THREADS},
+        {"num-compaction-threads", required_argument, 0, OPT_NUM_COMPACTION_THREADS},
+        {"max-open-sstables", required_argument, 0, OPT_MAX_OPEN_SSTABLES},
+        {"max-memory-usage", required_argument, 0, OPT_MAX_MEMORY_USAGE},
+        {"log-to-file", required_argument, 0, OPT_LOG_TO_FILE},
+        {"compression", required_argument, 0, OPT_COMPRESSION},
+        {"skip-list-max-level", required_argument, 0, OPT_SKIP_LIST_MAX_LEVEL},
+        {"skip-list-probability", required_argument, 0, OPT_SKIP_LIST_PROBABILITY},
+        {"level-size-ratio", required_argument, 0, OPT_LEVEL_SIZE_RATIO},
+        {"sync-mode", required_argument, 0, OPT_SYNC_MODE},
+        {"sync-interval-us", required_argument, 0, OPT_SYNC_INTERVAL_US},
+        {"unified-memtable", no_argument, 0, OPT_UNIFIED_MEMTABLE},
+        {"unified-memtable-size", required_argument, 0, OPT_UNIFIED_MEMTABLE_SIZE},
+        {"unified-memtable-skip-list-max-level", required_argument, 0,
+         OPT_UNIFIED_MEMTABLE_SKIP_LIST_MAX_LEVEL},
+        {"unified-memtable-skip-list-probability", required_argument, 0,
+         OPT_UNIFIED_MEMTABLE_SKIP_LIST_PROBABILITY},
+        {"unified-memtable-sync-mode", required_argument, 0, OPT_UNIFIED_MEMTABLE_SYNC_MODE},
+        {"unified-memtable-sync-interval-us", required_argument, 0,
+         OPT_UNIFIED_MEMTABLE_SYNC_INTERVAL_US},
+        {"object-store", required_argument, 0, OPT_OBJECT_STORE},
+        {"object-store-fs-path", required_argument, 0, OPT_OBJECT_STORE_FS_PATH},
+        {"s3-endpoint", required_argument, 0, OPT_S3_ENDPOINT},
+        {"s3-bucket", required_argument, 0, OPT_S3_BUCKET},
+        {"s3-prefix", required_argument, 0, OPT_S3_PREFIX},
+        {"s3-access-key", required_argument, 0, OPT_S3_ACCESS_KEY},
+        {"s3-secret-key", required_argument, 0, OPT_S3_SECRET_KEY},
+        {"s3-region", required_argument, 0, OPT_S3_REGION},
+        {"s3-no-ssl", no_argument, 0, OPT_S3_NO_SSL},
+        {"s3-path-style", no_argument, 0, OPT_S3_PATH_STYLE},
+        {"object-local-cache-path", required_argument, 0, OPT_OBJECT_LOCAL_CACHE_PATH},
+        {"object-local-cache-max-bytes", required_argument, 0, OPT_OBJECT_LOCAL_CACHE_MAX_BYTES},
+        {"object-cache-on-read", required_argument, 0, OPT_OBJECT_CACHE_ON_READ},
+        {"object-cache-on-write", required_argument, 0, OPT_OBJECT_CACHE_ON_WRITE},
+        {"object-max-concurrent-uploads", required_argument, 0, OPT_OBJECT_MAX_CONCURRENT_UPLOADS},
+        {"object-max-concurrent-downloads", required_argument, 0,
+         OPT_OBJECT_MAX_CONCURRENT_DOWNLOADS},
+        {"object-multipart-threshold", required_argument, 0, OPT_OBJECT_MULTIPART_THRESHOLD},
+        {"object-multipart-part-size", required_argument, 0, OPT_OBJECT_MULTIPART_PART_SIZE},
+        {"object-sync-manifest", required_argument, 0, OPT_OBJECT_SYNC_MANIFEST},
+        {"object-replicate-wal", required_argument, 0, OPT_OBJECT_REPLICATE_WAL},
+        {"object-wal-upload-sync", required_argument, 0, OPT_OBJECT_WAL_UPLOAD_SYNC},
+        {"object-wal-sync-threshold", required_argument, 0, OPT_OBJECT_WAL_SYNC_THRESHOLD},
+        {"object-wal-sync-on-commit", required_argument, 0, OPT_OBJECT_WAL_SYNC_ON_COMMIT},
+        {"object-replica-mode", required_argument, 0, OPT_OBJECT_REPLICA_MODE},
+        {"object-replica-sync-interval-us", required_argument, 0,
+         OPT_OBJECT_REPLICA_SYNC_INTERVAL_US},
+        {"object-replica-replay-wal", required_argument, 0, OPT_OBJECT_REPLICA_REPLAY_WAL},
+        {"object-lazy-compaction", required_argument, 0, OPT_OBJECT_LAZY_COMPACTION},
+        {"object-prefetch-compaction", required_argument, 0, OPT_OBJECT_PREFETCH_COMPACTION},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
@@ -314,6 +508,141 @@ int main(int argc, char **argv)
             case OPT_USE_BTREE:
                 config.use_btree = 1;
                 break;
+            case OPT_NUM_FLUSH_THREADS:
+                config.num_flush_threads = atoi(optarg);
+                break;
+            case OPT_NUM_COMPACTION_THREADS:
+                config.num_compaction_threads = atoi(optarg);
+                break;
+            case OPT_MAX_OPEN_SSTABLES:
+                config.max_open_sstables = (size_t)atoll(optarg);
+                break;
+            case OPT_MAX_MEMORY_USAGE:
+                config.max_memory_usage = (size_t)atoll(optarg);
+                break;
+            case OPT_LOG_TO_FILE:
+                config.log_to_file = atoi(optarg) ? 1 : 0;
+                break;
+            case OPT_COMPRESSION:
+                config.compression_algorithm = optarg;
+                break;
+            case OPT_SKIP_LIST_MAX_LEVEL:
+                config.skip_list_max_level = atoi(optarg);
+                break;
+            case OPT_SKIP_LIST_PROBABILITY:
+                config.skip_list_probability = (float)atof(optarg);
+                break;
+            case OPT_LEVEL_SIZE_RATIO:
+                config.level_size_ratio = (size_t)atoll(optarg);
+                break;
+            case OPT_SYNC_MODE:
+                config.sync_mode = optarg;
+                break;
+            case OPT_SYNC_INTERVAL_US:
+                config.sync_interval_us = (uint64_t)strtoull(optarg, NULL, 10);
+                break;
+            case OPT_UNIFIED_MEMTABLE:
+                config.unified_memtable = 1;
+                break;
+            case OPT_UNIFIED_MEMTABLE_SIZE:
+                config.unified_memtable_write_buffer_size = (size_t)atoll(optarg);
+                break;
+            case OPT_UNIFIED_MEMTABLE_SKIP_LIST_MAX_LEVEL:
+                config.unified_memtable_skip_list_max_level = atoi(optarg);
+                break;
+            case OPT_UNIFIED_MEMTABLE_SKIP_LIST_PROBABILITY:
+                config.unified_memtable_skip_list_probability = (float)atof(optarg);
+                break;
+            case OPT_UNIFIED_MEMTABLE_SYNC_MODE:
+                config.unified_memtable_sync_mode = optarg;
+                break;
+            case OPT_UNIFIED_MEMTABLE_SYNC_INTERVAL_US:
+                config.unified_memtable_sync_interval_us = (uint64_t)strtoull(optarg, NULL, 10);
+                break;
+            case OPT_OBJECT_STORE:
+                config.object_store_backend = optarg;
+                break;
+            case OPT_OBJECT_STORE_FS_PATH:
+                config.object_store_fs_path = optarg;
+                break;
+            case OPT_S3_ENDPOINT:
+                config.s3_endpoint = optarg;
+                break;
+            case OPT_S3_BUCKET:
+                config.s3_bucket = optarg;
+                break;
+            case OPT_S3_PREFIX:
+                config.s3_prefix = optarg;
+                break;
+            case OPT_S3_ACCESS_KEY:
+                config.s3_access_key = optarg;
+                break;
+            case OPT_S3_SECRET_KEY:
+                config.s3_secret_key = optarg;
+                break;
+            case OPT_S3_REGION:
+                config.s3_region = optarg;
+                break;
+            case OPT_S3_NO_SSL:
+                config.s3_use_ssl = 0;
+                break;
+            case OPT_S3_PATH_STYLE:
+                config.s3_use_path_style = 1;
+                break;
+            case OPT_OBJECT_LOCAL_CACHE_PATH:
+                config.object_local_cache_path = optarg;
+                break;
+            case OPT_OBJECT_LOCAL_CACHE_MAX_BYTES:
+                config.object_local_cache_max_bytes = (size_t)atoll(optarg);
+                break;
+            case OPT_OBJECT_CACHE_ON_READ:
+                config.object_cache_on_read = atoi(optarg);
+                break;
+            case OPT_OBJECT_CACHE_ON_WRITE:
+                config.object_cache_on_write = atoi(optarg);
+                break;
+            case OPT_OBJECT_MAX_CONCURRENT_UPLOADS:
+                config.object_max_concurrent_uploads = atoi(optarg);
+                break;
+            case OPT_OBJECT_MAX_CONCURRENT_DOWNLOADS:
+                config.object_max_concurrent_downloads = atoi(optarg);
+                break;
+            case OPT_OBJECT_MULTIPART_THRESHOLD:
+                config.object_multipart_threshold = (size_t)atoll(optarg);
+                break;
+            case OPT_OBJECT_MULTIPART_PART_SIZE:
+                config.object_multipart_part_size = (size_t)atoll(optarg);
+                break;
+            case OPT_OBJECT_SYNC_MANIFEST:
+                config.object_sync_manifest = atoi(optarg);
+                break;
+            case OPT_OBJECT_REPLICATE_WAL:
+                config.object_replicate_wal = atoi(optarg);
+                break;
+            case OPT_OBJECT_WAL_UPLOAD_SYNC:
+                config.object_wal_upload_sync = atoi(optarg);
+                break;
+            case OPT_OBJECT_WAL_SYNC_THRESHOLD:
+                config.object_wal_sync_threshold_bytes = (size_t)atoll(optarg);
+                break;
+            case OPT_OBJECT_WAL_SYNC_ON_COMMIT:
+                config.object_wal_sync_on_commit = atoi(optarg);
+                break;
+            case OPT_OBJECT_REPLICA_MODE:
+                config.object_replica_mode = atoi(optarg);
+                break;
+            case OPT_OBJECT_REPLICA_SYNC_INTERVAL_US:
+                config.object_replica_sync_interval_us = (uint64_t)strtoull(optarg, NULL, 10);
+                break;
+            case OPT_OBJECT_REPLICA_REPLAY_WAL:
+                config.object_replica_replay_wal = atoi(optarg);
+                break;
+            case OPT_OBJECT_LAZY_COMPACTION:
+                config.object_lazy_compaction = atoi(optarg);
+                break;
+            case OPT_OBJECT_PREFETCH_COMPACTION:
+                config.object_prefetch_compaction = atoi(optarg);
+                break;
             default:
                 print_usage(argv[0]);
                 return 1;
@@ -443,7 +772,7 @@ int main(int argc, char **argv)
 
     if (config.csv_file)
     {
-        /* We Check if CSV file is empty to determine if we need to write header */
+        /* we need to check if CSV file is empty to determine if we need to write header */
         int write_header = 0;
         FILE *check_fp = fopen(config.csv_file, "r");
         if (check_fp)
@@ -457,7 +786,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            /* File doesn't exist yet, we'll need to write header */
+            /* file doesnt exist yet, we need to write header */
             write_header = 1;
         }
 

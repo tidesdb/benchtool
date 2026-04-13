@@ -82,6 +82,62 @@ typedef struct
     size_t klog_value_threshold;
     int debug_logging; /* enable debug logging for engines (0 = disabled, 1 = enabled) */
     int use_btree;     /* use B+tree klog for TidesDB (0 = block-based, 1 = B+tree) */
+
+    /* TidesDB database-level configuration */
+    int num_flush_threads;      /* flush thread pool size (0 = engine default) */
+    int num_compaction_threads; /* compaction thread pool size (0 = engine default) */
+    size_t max_open_sstables;   /* max cached SSTable structures (0 = engine default) */
+    size_t max_memory_usage;    /* global memory limit in bytes (0 = engine default) */
+    int log_to_file;            /* write engine logs to file (1 = yes, 0 = stderr) */
+
+    /* TidesDB column-family tuning */
+    const char *compression_algorithm; /* "lz4","lz4fast","zstd","snappy","none" (NULL = lz4) */
+    int skip_list_max_level;           /* skip list max level (0 = engine default) */
+    float skip_list_probability;       /* skip list probability (0.0 = engine default) */
+    size_t level_size_ratio;           /* level size multiplier (0 = engine default) */
+    const char *sync_mode;     /* "none","full","interval" (NULL = infer from sync_enabled) */
+    uint64_t sync_interval_us; /* sync interval for TDB_SYNC_INTERVAL in microseconds */
+
+    /* TidesDB unified memtable mode */
+    int unified_memtable;                         /* 1 = unified, 0 = per-CF (default) */
+    size_t unified_memtable_write_buffer_size;    /* 0 = engine default */
+    int unified_memtable_skip_list_max_level;     /* 0 = engine default */
+    float unified_memtable_skip_list_probability; /* 0.0 = engine default */
+    const char *unified_memtable_sync_mode;       /* "none","full","interval" (NULL = none) */
+    uint64_t unified_memtable_sync_interval_us;   /* 0 = engine default */
+
+    /* TidesDB object store mode */
+    const char *object_store_backend; /* "none" (default), "fs", or "s3" */
+    const char *object_store_fs_path; /* root dir for filesystem connector */
+    /* S3 connector parameters (only when object_store_backend = "s3") */
+    const char *s3_endpoint;
+    const char *s3_bucket;
+    const char *s3_prefix; /* optional key prefix */
+    const char *s3_access_key;
+    const char *s3_secret_key;
+    const char *s3_region;
+    int s3_use_ssl;        /* 1 = HTTPS (default), 0 = HTTP */
+    int s3_use_path_style; /* 1 = path-style (MinIO), 0 = virtual-hosted (AWS) */
+    /* Object store configuration (applies to any backend) */
+    const char *object_local_cache_path;      /* local cache directory (NULL = db_path) */
+    size_t object_local_cache_max_bytes;      /* 0 = unlimited */
+    int object_cache_on_read;                 /* -1 = engine default */
+    int object_cache_on_write;                /* -1 = engine default */
+    int object_max_concurrent_uploads;        /* 0 = engine default */
+    int object_max_concurrent_downloads;      /* 0 = engine default */
+    size_t object_multipart_threshold;        /* 0 = engine default */
+    size_t object_multipart_part_size;        /* 0 = engine default */
+    int object_sync_manifest;                 /* -1 = engine default */
+    int object_replicate_wal;                 /* -1 = engine default */
+    int object_wal_upload_sync;               /* -1 = engine default */
+    size_t object_wal_sync_threshold_bytes;   /* 0 = engine default */
+    int object_wal_sync_on_commit;            /* -1 = engine default */
+    int object_replica_mode;                  /* -1 = engine default */
+    uint64_t object_replica_sync_interval_us; /* 0 = engine default */
+    int object_replica_replay_wal;            /* -1 = engine default */
+    /* Per-CF object store tuning */
+    int object_lazy_compaction;     /* -1 = engine default */
+    int object_prefetch_compaction; /* -1 = engine default */
 } benchmark_config_t;
 
 typedef struct
