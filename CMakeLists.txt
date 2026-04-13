@@ -8,6 +8,13 @@ option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
+# Enable the S3 object store connector (requires TidesDB built with -DTIDESDB_WITH_S3=ON)
+option(BENCHTOOL_WITH_S3 "Enable --object-store s3 (needs TidesDB built with TIDESDB_WITH_S3)" OFF)
+if(BENCHTOOL_WITH_S3)
+    add_definitions(-DBENCHTOOL_WITH_S3 -DTIDESDB_WITH_S3)
+    message(STATUS "benchtool: S3 object store connector enabled")
+endif()
+
 
 if(ENABLE_ASAN)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fno-omit-frame-pointer -g")
